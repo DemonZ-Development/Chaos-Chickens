@@ -1,0 +1,74 @@
+# ChaosChickens Configuration
+# Config Version: 3
+# Modrinth: https://modrinth.com/project/chaos-chickens
+
+# Config schema version (do not change manually - used for migration)
+config-version: 3
+
+# Chance that a spawned chicken gets a chaos trait (0.0 - 1.0)
+chaos-chance: 0.35
+
+# Boss chickens have multiple traits combined
+enable-boss-chickens: true
+boss-chance: 0.02
+boss-trait-count: 3
+
+# Visual and message settings
+enable-particles: true
+enable-messages: true
+
+# Announce the trait type when a chaos chicken spawns
+announce-trait-on-spawn: false
+
+# Only apply traits to naturally spawned chickens (not from spawn eggs, breeders, etc.)
+only-natural-spawns: false
+
+# Maximum chaos chickens per player (-1 = unlimited)
+max-chickens-per-player: -1
+
+# Check for updates on Modrinth at startup
+check-for-updates: true
+
+# Enable bStats anonymous metrics
+bstats-enabled: true
+
+# Enable Folia-compatible scheduling (auto-detected, but can be forced off)
+enable-folia-support: true
+
+# Trait configuration
+# Each trait has an 'enabled' toggle and a 'weight' for random selection
+# Higher weight = more likely to be selected
+traits:
+  explosive:
+    enabled: true
+    weight: 1.0
+  speed:
+    enabled: true
+    weight: 1.2
+  fire:
+    enabled: true
+    weight: 1.0
+  magnet:
+    enabled: true
+    weight: 0.8
+  golden:
+    enabled: true
+    weight: 0.5
+  disco:
+    enabled: true
+    weight: 1.0
+  zombie:
+    enabled: true
+    weight: 0.7
+  teleport:
+    enabled: true
+    weight: 0.6
+  ice:
+    enabled: true
+    weight: 0.8
+  cursed:
+    enabled: true
+    weight: 0.7
+  boss:
+    enabled: true
+    weight: 0.2

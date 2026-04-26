@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "chaoschickens",
+  "version": "${version}",
+  "name": "Chaos Chickens",
+  "description": "Chickens with chaotic traits! Explosive, speedy, golden, and more.",
+  "authors": [
+    "DemonZ Development",
+    "Cyrus"
+  ],
+  "contact": {
+    "homepage": "https://modrinth.com/project/chaos-chickens",
+    "sources": "https://github.com/chaoschickens/ChaosChickens"
+  },
+  "license": "GPL-3.0",
+  "icon": "icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.chaoschickens.fabric.ChaosChickensFabric"
+    ]
+  },
+  "mixins": [
+    "chaoschickens.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": ">=1.20.4",
+    "java": ">=17"
+  },
+  "suggests": {}
+}

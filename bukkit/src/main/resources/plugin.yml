@@ -1,0 +1,21 @@
+name: ChaosChickens
+version: '${project.version}'
+main: com.chaoschickens.bukkit.ChaosChickensBukkit
+api-version: '1.20'
+description: Chickens with random chaos traits! Supports Spigot, Paper, Purpur, and Folia.
+website: https://modrinth.com/project/chaos-chickens
+commands:
+  chaoschickens:
+    description: Main command for ChaosChickens plugin
+    usage: /<command> [reload|give|list|spawn|toggle|update]
+    aliases:
+      - cc
+    permission: chaoschickens.admin
+permissions:
+  chaoschickens.admin:
+    description: Allows access to all ChaosChickens admin commands
+    default: op
+  chaoschickens.see_traits:
+    description: Allows seeing trait info by right-clicking chickens
+    default: true
+folia-supported: true
