@@ -1,0 +1,165 @@
+name: Build Chaos Chickens
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-common:
+    name: Build Common Module
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Build Common module
+        working-directory: common
+        run: mvn clean install -B
+
+      - name: Upload Common artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChaosChickens-Common
+          path: common/target/*.jar
+          retention-days: 30
+
+  build-bukkit:
+    name: Build Bukkit (Spigot/Paper/Purpur/Folia)
+    needs: build-common
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Build Common module
+        working-directory: common
+        run: mvn clean install -B
+
+      - name: Build Bukkit module
+        working-directory: bukkit
+        run: mvn clean package -B
+
+      - name: Upload Bukkit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChaosChickens-Bukkit
+          path: bukkit/target/*.jar
+          retention-days: 30
+
+  build-fabric:
+    name: Build Fabric
+    needs: build-common
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle
+
+      - name: Build Common module (Maven)
+        working-directory: common
+        run: mvn clean install -B
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate Gradle wrapper
+        working-directory: fabric
+        run: gradle wrapper --gradle-version 8.5
+
+      - name: Build Fabric module
+        working-directory: fabric
+        run: ./gradlew build
+
+      - name: Upload Fabric artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChaosChickens-Fabric
+          path: fabric/build/libs/*.jar
+          retention-days: 30
+
+  build-forge:
+    name: Build Forge
+    needs: build-common
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle
+
+      - name: Build Common module (Maven)
+        working-directory: common
+        run: mvn clean install -B
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate Gradle wrapper
+        working-directory: forge
+        run: gradle wrapper --gradle-version 8.5
+
+      - name: Build Forge module
+        working-directory: forge
+        run: ./gradlew build
+
+      - name: Upload Forge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChaosChickens-Forge
+          path: forge/build/libs/*.jar
+          retention-days: 30
