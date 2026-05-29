@@ -251,10 +251,14 @@ public class ChaosChickensFabric implements ModInitializer {
 
         for (ServerWorld world : server.getWorlds()) {
             // Get all chicken entities in the world
-            List<ChickenEntity> chickens = (List<ChickenEntity>) (List<?>) world.getEntitiesByType(
-                    EntityType.CHICKEN,
-                    chicken -> activeChickens.containsKey(chicken.getUuid())
-            );
+            List<ChickenEntity> chickens = new ArrayList<>();
+            for (net.minecraft.entity.Entity entity : world.iterateEntities()) {
+                if (entity instanceof ChickenEntity chicken) {
+                    if (activeChickens.containsKey(chicken.getUuid())) {
+                        chickens.add(chicken);
+                    }
+                }
+            }
 
             for (ChickenEntity chicken : chickens) {
                 if (chicken.isRemoved() || chicken.isDead()) {
