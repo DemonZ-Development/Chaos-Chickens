@@ -8,7 +8,7 @@
 
 # 🐔 Chaos Chickens
 
-[![GitHub license](https://img.shields.io/github/license/DemonZ-Development/Chaos-Chickens?style=for-the-badge&color=blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/DemonZ-Development/Chaos-Chickens?style=for-the-badge&color=orange&include_prereleases)](https://github.com/DemonZ-Development/Chaos-Chickens/releases)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/DemonZ-Development/Chaos-Chickens/build.yml?style=for-the-badge&color=green&branch=main)](https://github.com/DemonZ-Development/Chaos-Chickens/actions)
 [![Minecraft Support](https://img.shields.io/badge/Minecraft-1.20%20--%2026.x-brightgreen?style=for-the-badge)](https://www.minecraft.net/)
