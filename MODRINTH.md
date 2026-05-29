@@ -1,22 +1,12 @@
----
-title: Chaos Chickens
-summary: Chickens with random chaos traits! Explosive, speedy, golden, teleporting, and more.
-authors:
-  - DemonZ Development
-  - Cyrus
-categories:
-  - gameplay
-  - adventure
-  - utility
-license: GPL-3.0
-project-url: https://github.com/DemonZ-Development/Chaos-Chickens
-source-url: https://github.com/DemonZ-Development/Chaos-Chickens
-issues-url: https://github.com/DemonZ-Development/Chaos-Chickens/issues
----
+<div align="center">
+
+![Chaos Chickens Banner](https://github.com/DemonZ-Development/Chaos-Chickens/raw/main/assets/banner.png)
+
+<br/>
+
+<img src="https://github.com/DemonZ-Development/Chaos-Chickens/raw/main/assets/icon.png" width="128" height="128" alt="Chaos Chickens Logo" />
 
 # 🐔 Chaos Chickens
-
-<div align="center">
 
 **Unpredictable. Hilarious. Deadly.**  
 Inject chaos into your Minecraft server or client with chickens that possess randomized magic traits, combat mutations, and rare boss behaviors!
@@ -101,13 +91,23 @@ Want to set up Chaos Chickens quickly? Check out our quick guides:
 
 ## 📊 bStats Analytics
 
-This plugin/mod uses [bStats](https://bstats.org/plugin/bukkit/Chaos%20Chickens/30945) to collect anonymous usage data. This helps us understand how the mod is used and prioritize features. You can disable it in the config with `bstats-enabled: false` (or `bstatsEnabled: false`).
+This plugin uses [bStats](https://bstats.org/plugin/bukkit/Chaos%20Chickens/30945) to collect anonymous usage data to help us track active servers, player counts, and trait statistics.
 
-Collected data includes:
-* Active chaos chicken count
-* Chaos chance percentage
-* Folia detection status
-* Trait distribution
+> [!NOTE]
+> **Plugin-Only Metrics:** These metrics are collected for the Bukkit/Spigot/Paper/Folia plugin version only. Fabric and Forge mod versions do not collect bStats data.
+> You can opt-out of analytics at any time by setting `bstats-enabled: false` in `config.yml`.
+
+<div align="center">
+
+![bStats Server Signature](https://bstats.org/signatures/bukkit/Chaos%20Chickens.svg)
+
+</div>
+
+### Collected data includes:
+* Active chaos chicken count in the world
+* Configured chaos chance percentage
+* Folia region safety detection status
+* Active trait distribution percentages
 
 ---
 

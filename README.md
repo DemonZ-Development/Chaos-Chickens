@@ -1,6 +1,12 @@
-# 🐔 Chaos Chickens
-
 <div align="center">
+
+![Chaos Chickens Banner](https://github.com/DemonZ-Development/Chaos-Chickens/raw/main/assets/banner.png)
+
+<br/>
+
+<img src="https://github.com/DemonZ-Development/Chaos-Chickens/raw/main/assets/icon.png" width="128" height="128" alt="Chaos Chickens Logo" />
+
+# 🐔 Chaos Chickens
 
 [![GitHub license](https://img.shields.io/github/license/DemonZ-Development/Chaos-Chickens?style=for-the-badge&color=blue)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/DemonZ-Development/Chaos-Chickens?style=for-the-badge&color=orange&include_prereleases)](https://github.com/DemonZ-Development/Chaos-Chickens/releases)
@@ -97,6 +103,28 @@ mvn clean package
 ```
 
 Detailed compilation settings and local Maven installation instructions are available on the **[Building from Source Wiki Page](wiki/Building-from-Source)**.
+
+---
+
+## 📊 bStats Analytics
+
+This plugin uses [bStats](https://bstats.org/plugin/bukkit/Chaos%20Chickens/30945) to collect anonymous usage data to help us track active servers, player counts, and trait statistics.
+
+> [!NOTE]
+> **Plugin-Only Metrics:** These metrics are collected for the Bukkit/Spigot/Paper/Folia plugin version only. Fabric and Forge mod versions do not collect bStats data.
+> You can opt-out of analytics at any time by setting `bstats-enabled: false` in `config.yml`.
+
+<div align="center">
+
+![bStats Server Signature](https://bstats.org/signatures/bukkit/Chaos%20Chickens.svg)
+
+</div>
+
+### Collected data includes:
+* Active chaos chicken count in the world
+* Configured chaos chance percentage
+* Folia region safety detection status
+* Active trait distribution percentages
 
 ---
 
