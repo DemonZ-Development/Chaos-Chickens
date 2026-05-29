@@ -29,8 +29,8 @@ dependencies {
     include project(path: ':common', configuration: 'default')
 
     // Cloth Config
-    modImplementation "me.shedaniel.cloth:cloth-config-fabric:14.0.139"
-    include "me.shedaniel.cloth:cloth-config-fabric:14.0.139"
+    modImplementation "me.shedaniel.cloth:cloth-config-fabric:15.0.140"
+    include "me.shedaniel.cloth:cloth-config-fabric:15.0.140"
 }
 
 processResources {

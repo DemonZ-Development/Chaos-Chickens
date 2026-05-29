@@ -13,7 +13,7 @@ To use the API, add the **Common module** as a compile dependency to your build 
 <dependency>
     <groupId>com.chaoschickens</groupId>
     <artifactId>chaoschickens-common</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <scope>provided</scope>
 </dependency>
 ```
@@ -21,7 +21,7 @@ To use the API, add the **Common module** as a compile dependency to your build 
 ### Gradle (`build.gradle`)
 ```groovy
 dependencies {
-    compileOnly 'com.chaoschickens:chaoschickens-common:1.0.0'
+    compileOnly 'com.chaoschickens:chaoschickens-common:1.0.1'
 }
 ```
 
