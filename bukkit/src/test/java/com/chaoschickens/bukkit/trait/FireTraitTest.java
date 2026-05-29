@@ -26,6 +26,7 @@ class FireTraitTest {
     @BeforeEach
     void setUp() {
         server = MockBukkit.mock();
+        MockBukkit.load(com.chaoschickens.bukkit.ChaosChickensBukkit.class);
     }
 
     @AfterEach
