@@ -99,7 +99,9 @@ This plugin uses [bStats](https://bstats.org/plugin/bukkit/Chaos%20Chickens/3094
 
 <div align="center">
 
-![bStats Server Signature](https://bstats.org/signatures/bukkit/Chaos%20Chickens.svg)
+[![bStats Server Signature](https://bstats.org/signatures/bukkit/Chaos%20Chickens.svg)](https://bstats.org/plugin/bukkit/Chaos%20Chickens/30945)
+
+*Click the signature image above to view the live, interactive charts on the official bStats page.*
 
 </div>
 
