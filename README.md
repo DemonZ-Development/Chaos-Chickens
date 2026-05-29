@@ -50,8 +50,8 @@ From simple speed boosts to massive detonations, item-stealing magnets, and rare
 
 * **Bukkit / Spigot / Paper / Purpur**: ✅ Full native support (`1.20 - 26.x`).
 * **Folia**: ✅ Full native support (utilizes Folia's `GlobalRegionScheduler` asynchronously, guaranteeing zero tick lag).
-* **Fabric**: ✅ Full native support (features dynamic configuration via Cloth Config API GUI).
-* **Forge**: ✅ Full native support (bundled with core common systems directly inside the mod jar).
+* **Fabric**: ✅ Full native support (`1.21 - 26.x`, features dynamic configuration via Cloth Config API GUI).
+* **Forge**: ✅ Full native support (`1.21 - 26.x`, bundled with core common systems directly inside the mod jar).
 
 ---
 
