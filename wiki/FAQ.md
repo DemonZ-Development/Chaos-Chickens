@@ -37,3 +37,8 @@ traits:
 
 ### Q: How do I obtain a chaos egg to spawn a specific chicken?
 **A**: If you are an administrator, you can run `/chaoschickens egg <trait>` to give yourself a customized spawn egg that is permanently bound to that specific trait.
+
+---
+
+### Q: Is this mod required on the client side for multiplayer servers?
+**A**: No! Chaos Chickens is designed as a **server-side mod/plugin**. If you run the Fabric, Forge, or Bukkit version on your server, players can join using a completely vanilla Minecraft client. They do not need to install the mod locally because all traits, sound effects, particle animations, and behaviors are handled server-side and transmitted via standard Minecraft network packets. (Note: For singleplayer/local LAN worlds, the mod must be installed in the client's `mods` folder.)

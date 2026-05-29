@@ -1,6 +1,17 @@
 # ⚙️ Configuration Guide
 
-**Chaos Chickens** offers a deeply customizable configuration system. The Bukkit module uses `config.yml`, whereas the Fabric and Forge modules use a JSON-based config system managed via `cloth-config` / config folders.
+**Chaos Chickens** offers a deeply customizable configuration system. Depending on your platform, you can find the config files in the following directories:
+
+* **Bukkit / Spigot / Paper / Folia**: `plugins/ChaosChickens/config.yml`
+* **Fabric / Forge**: `config/chaoschickens.json`
+
+---
+
+## 🛠️ How to Edit Configurations
+
+* **Bukkit (Spigot/Paper/Folia)**: Open `plugins/ChaosChickens/config.yml` in any text editor, save changes, and run `/cc reload` in the console or in-game to apply them immediately.
+* **Fabric (In-Game GUI)**: If you have **Cloth Config API** and **Mod Menu** installed, you can configure all options dynamically inside the game menu (Go to Mods > Chaos Chickens > Config).
+* **Fabric & Forge (Out-of-Game JSON)**: Open `config/chaoschickens.json` in your game/server directory and edit the values.
 
 ---
 
