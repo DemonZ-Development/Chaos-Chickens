@@ -108,9 +108,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Generate Gradle wrapper
+      - name: Make gradlew executable
         working-directory: fabric
-        run: gradle wrapper --gradle-version 8.5
+        run: chmod +x gradlew
 
       - name: Build Fabric module
         working-directory: fabric
@@ -153,9 +153,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Generate Gradle wrapper
+      - name: Make gradlew executable
         working-directory: forge
-        run: gradle wrapper --gradle-version 8.5
+        run: chmod +x gradlew
 
       - name: Build Forge module
         working-directory: forge
