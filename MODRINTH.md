@@ -59,7 +59,7 @@ From simple speed boosts to massive detonations, item-stealing magnets, and rare
 
 * **Bukkit / Spigot / Paper / Purpur**: ✅ Full native support (`1.20 - 26.x`).
 * **Folia**: ✅ Full native support (utilizes Folia's `GlobalRegionScheduler` asynchronously, guaranteeing zero tick lag).
-* **Fabric**: ✅ Full native support (`1.21 - 26.x`, features dynamic configuration via Cloth Config API GUI).
+* **Fabric**: ✅ Full native support (`1.21 - 26.x`, configures via `config/chaoschickens.json`).
 * **Forge**: ✅ Full native support (`1.21 - 26.x`, bundled with core common systems directly inside the mod jar).
 
 Both **singleplayer** and **multiplayer** are fully supported!
@@ -80,7 +80,7 @@ Want to set up Chaos Chickens quickly? Check out our quick guides:
 ### Fabric
 1. Download the Fabric mod jar and make sure you have Fabric API installed.
 2. Put the JAR in your `mods/` directory.
-3. Boot the game. Config details can be customized via Cloth Config mod menu.
+3. Boot client or server. Config is at `config/chaoschickens.json`.
 
 ### Forge
 1. Download the Forge mod jar and make sure you have Forge loaded.
