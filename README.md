@@ -5,7 +5,7 @@
 [![GitHub license](https://img.shields.io/github/license/DemonZ-Development/Chaos-Chickens?style=for-the-badge&color=blue)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/DemonZ-Development/Chaos-Chickens?style=for-the-badge&color=orange&include_prereleases)](https://github.com/DemonZ-Development/Chaos-Chickens/releases)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/DemonZ-Development/Chaos-Chickens/build.yml?style=for-the-badge&color=green&branch=main)](https://github.com/DemonZ-Development/Chaos-Chickens/actions)
-[![Minecraft Support](https://img.shields.io/badge/Minecraft-1.20%20--%201.21.x-brightgreen?style=for-the-badge)](https://www.minecraft.net/)
+[![Minecraft Support](https://img.shields.io/badge/Minecraft-1.20%20--%2026.x-brightgreen?style=for-the-badge)](https://www.minecraft.net/)
 [![bStats Metrics](https://img.shields.io/badge/bStats-30945-blueviolet?style=for-the-badge)](https://bstats.org/plugin/bukkit/Chaos%20Chickens/30945)
 
 **Unpredictable. Hilarious. Deadly.**  
@@ -48,7 +48,7 @@ From simple speed boosts to massive detonations, item-stealing magnets, and rare
 
 ## 🔌 Supported Platforms
 
-* **Bukkit / Spigot / Paper / Purpur**: ✅ Full native support (`1.20 - 1.21.x`).
+* **Bukkit / Spigot / Paper / Purpur**: ✅ Full native support (`1.20 - 26.x`).
 * **Folia**: ✅ Full native support (utilizes Folia's `GlobalRegionScheduler` asynchronously, guaranteeing zero tick lag).
 * **Fabric**: ✅ Full native support (features dynamic configuration via Cloth Config API GUI).
 * **Forge**: ✅ Full native support (bundled with core common systems directly inside the mod jar).
