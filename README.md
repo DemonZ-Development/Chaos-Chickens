@@ -17,7 +17,7 @@
 **Unpredictable. Hilarious. Deadly.**  
 Inject chaos into your Minecraft server or client with chickens that possess randomized magic traits, combat mutations, and rare boss behaviors!
 
-[📖 Read the Full GitHub Wiki](wiki/Home) | [💬 Join the Discord](https://discord.gg/demonzdev) | [📥 Download on Modrinth](https://modrinth.com/project/chaos-chickens)
+[📖 Read the Full GitHub Wiki](wiki/Home) | [💬 Join the Discord](https://discord.com/invite/GYsTt96ypf) | [📥 Download on Modrinth](https://modrinth.com/project/chaos-chickens)
 
 </div>
 

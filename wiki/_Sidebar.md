@@ -15,4 +15,4 @@
 ### Resources
 * [GitHub Repo](https://github.com/DemonZDevelopment/Chaos-Chickens)
 * [Modrinth Page](https://modrinth.com/project/chaos-chickens)
-* [Discord Server](https://discord.gg/demonzdev)
+* [Discord Server](https://discord.com/invite/GYsTt96ypf)

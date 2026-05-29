@@ -11,7 +11,7 @@
 **Unpredictable. Hilarious. Deadly.**  
 Inject chaos into your Minecraft server or client with chickens that possess randomized magic traits, combat mutations, and rare boss behaviors!
 
-[📖 Read the Full GitHub Wiki](https://github.com/DemonZ-Development/Chaos-Chickens/wiki) | [💬 Join the Discord](https://discord.gg/demonzdev) | [📥 GitHub Repository](https://github.com/DemonZ-Development/Chaos-Chickens)
+[📖 Read the Full GitHub Wiki](https://github.com/DemonZ-Development/Chaos-Chickens/wiki) | [💬 Join the Discord](https://discord.com/invite/GYsTt96ypf) | [📥 GitHub Repository](https://github.com/DemonZ-Development/Chaos-Chickens)
 
 </div>
 
