@@ -76,7 +76,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ChaosChickens-Bukkit
-          path: bukkit/target/*.jar
+          path: |
+            bukkit/target/*.jar
+            !bukkit/target/original-*.jar
           retention-days: 30
 
   build-fabric:
@@ -121,7 +123,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ChaosChickens-Fabric
-          path: fabric/build/libs/*.jar
+          path: |
+            fabric/build/libs/*.jar
+            !fabric/build/libs/*-sources.jar
           retention-days: 30
 
   build-forge:
