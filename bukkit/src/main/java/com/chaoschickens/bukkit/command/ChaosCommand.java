@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.command;
 
 import com.chaoschickens.bukkit.ChaosChickensBukkit;
@@ -69,7 +78,6 @@ public class ChaosCommand implements CommandExecutor, TabCompleter {
      * /cc reload - Reload the plugin configuration.
      */
     private boolean handleReload(CommandSender sender) {
-        plugin.reloadConfig();
         plugin.loadConfig();
         sender.sendMessage(ChatColor.GREEN + "[ChaosChickens] Configuration reloaded! (Config version: "
                 + plugin.getConfigManager().getConfigVersion() + ")");
@@ -229,11 +237,27 @@ public class ChaosCommand implements CommandExecutor, TabCompleter {
     private boolean handleUpdate(CommandSender sender) {
         sender.sendMessage(ChatColor.YELLOW + "[ChaosChickens] Checking for updates...");
         com.chaoschickens.common.util.UpdateChecker.checkForUpdates().thenAccept(available -> {
-            if (available) {
-                sender.sendMessage(ChatColor.GOLD + "[ChaosChickens] " +
-                        com.chaoschickens.common.util.UpdateChecker.getUpdateMessage());
+            Runnable task = () -> {
+                if (available) {
+                    sender.sendMessage(ChatColor.GOLD + "[ChaosChickens] " +
+                            com.chaoschickens.common.util.UpdateChecker.getUpdateMessage());
+                } else {
+                    sender.sendMessage(ChatColor.GREEN + "[ChaosChickens] You are running the latest version!");
+                }
+            };
+            if (plugin.isFolia()) {
+                try {
+                    Class<?> globalSchedulerClass = Class.forName(
+                            "io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler");
+                    Object globalScheduler = org.bukkit.Bukkit.class.getMethod("getGlobalRegionScheduler").invoke(null);
+                    java.lang.reflect.Method run = globalSchedulerClass.getMethod("run",
+                            org.bukkit.plugin.Plugin.class, java.util.function.Consumer.class);
+                    run.invoke(globalScheduler, plugin, (java.util.function.Consumer<Object>) t -> task.run());
+                } catch (Exception e) {
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, task);
+                }
             } else {
-                sender.sendMessage(ChatColor.GREEN + "[ChaosChickens] You are running the latest version!");
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, task);
             }
         });
         return true;

@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -6,6 +15,7 @@ import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.passive.ChickenEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 
 import java.util.UUID;
 
@@ -15,11 +25,8 @@ import java.util.UUID;
  */
 public class SpeedTrait extends FabricTrait {
 
-    /** UUID for the movement speed attribute modifier. */
-    private static final UUID SPEED_MODIFIER_UUID = UUID.fromString("d3b39e8c-7c2a-4e1f-b8d5-9a6c3e7f1a02");
-
-    /** Key for the movement speed attribute modifier. */
-    private static final String SPEED_MODIFIER_NAME = "ChaosChickensSpeedBoost";
+    /** Identifier for the movement speed attribute modifier. */
+    private static final Identifier SPEED_MODIFIER_ID = Identifier.of("chaoschickens", "speed_boost");
 
     public SpeedTrait() {
         super(TraitType.SPEED, "A very fast chicken! Zoom zoom!", 1.2,
@@ -38,17 +45,16 @@ public class SpeedTrait extends FabricTrait {
         var speedAttribute = chicken.getAttributeInstance(EntityAttributes.GENERIC_MOVEMENT_SPEED);
         if (speedAttribute != null) {
             // Remove existing modifier if present
-            EntityAttributeModifier existing = speedAttribute.getModifier(SPEED_MODIFIER_UUID);
+            EntityAttributeModifier existing = speedAttribute.getModifier(SPEED_MODIFIER_ID);
             if (existing != null) {
                 speedAttribute.removeModifier(existing);
             }
 
-            // Set base movement speed to 0.35 (default is ~0.25 for passive mobs)
+            // Set speed modifier to 2.0 (adds 200% to base, making it 3x faster)
             EntityAttributeModifier speedModifier = new EntityAttributeModifier(
-                    SPEED_MODIFIER_UUID,
-                    SPEED_MODIFIER_NAME,
-                    0.35,
-                    EntityAttributeModifier.Operation.ADD_VALUE
+                    SPEED_MODIFIER_ID,
+                    2.0,
+                    EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
             );
             speedAttribute.addPersistentModifier(speedModifier);
         }

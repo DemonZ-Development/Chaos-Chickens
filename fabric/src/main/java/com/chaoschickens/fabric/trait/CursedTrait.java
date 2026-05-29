@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -40,21 +49,28 @@ public class CursedTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.getWorld() instanceof ServerWorld serverWorld)) return;
 
-        // Spawn curse particles around the chicken
+        // Only spawn particles when players are nearby
         if (chicken.age % 20 == 0) {
-            serverWorld.spawnParticles(
-                    ParticleTypes.WITCH,
-                    chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                    4, 0.3, 0.3, 0.3, 0.02
-            );
+            boolean playersNearby = !serverWorld.getPlayers().stream()
+                    .filter(player -> !player.isDead())
+                    .filter(player -> player.squaredDistanceTo(chicken) <= PROXIMITY_RANGE * PROXIMITY_RANGE)
+                    .toList()
+                    .isEmpty();
+            if (playersNearby) {
+                serverWorld.spawnParticles(
+                        ParticleTypes.WITCH,
+                        chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
+                        4, 0.3, 0.3, 0.3, 0.02
+                );
+            }
         }
     }
 
     @Override
     public void onPlayerNear(ChickenEntity chicken, PlayerEntity player) {
+        if (chicken == null || chicken.getRandom() == null) return;
         if (player == null || player.isDead()) return;
 
-        // Apply a random negative status effect
         var random = chicken.getRandom();
         int effectIndex = random.nextInt(5);
         StatusEffectInstance effect = switch (effectIndex) {

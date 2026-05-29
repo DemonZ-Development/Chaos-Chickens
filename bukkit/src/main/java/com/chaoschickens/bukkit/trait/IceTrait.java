@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -64,14 +73,16 @@ public class IceTrait extends BukkitTrait {
             }
         }
 
-        // Display snowflake particles around the chicken (use clone)
-        chicken.getWorld().spawnParticle(
-                Particle.SNOWFLAKE,
-                chickenLoc.clone().add(0, 0.5, 0),
-                5,
-                0.4, 0.3, 0.4,
-                0.01
-        );
+        // Display snowflake particles around the chicken (use clone) (if enabled)
+        if (plugin.getConfigManager().isTraitParticlesEnabled()) {
+            chicken.getWorld().spawnParticle(
+                    Particle.SNOWFLAKE,
+                    chickenLoc.clone().add(0, 0.5, 0),
+                    5,
+                    0.4, 0.3, 0.4,
+                    0.01
+            );
+        }
     }
 
     @Override

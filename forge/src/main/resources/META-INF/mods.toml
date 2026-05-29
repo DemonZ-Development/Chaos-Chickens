@@ -1,10 +1,10 @@
 modLoader="javafml"
-loaderVersion="[47,)"
+loaderVersion="[52,)"
 license="GPL-3.0"
 
 [[mods]]
 modId="chaoschickens"
-version="1.0.0"
+version="${version}"
 displayName="Chaos Chickens"
 description='''
 Chickens with chaotic traits! Every chicken that spawns has a random chaos trait —
@@ -17,13 +17,13 @@ logoFile="icon.png"
 [[dependencies.chaoschickens]]
 modId="forge"
 mandatory=true
-versionRange="[47,)"
+versionRange="[52,)"
 ordering="NONE"
 side="BOTH"
 
 [[dependencies.chaoschickens]]
 modId="minecraft"
 mandatory=true
-versionRange="[1.20.4,1.22)"
+versionRange="[1.21,1.22)"
 ordering="NONE"
 side="BOTH"

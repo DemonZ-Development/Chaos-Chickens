@@ -1,0 +1,26 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+}
+
+group = 'com.chaoschickens'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+def targetJava = project.hasProperty('targetJava') ? project.property('targetJava').toString() : '17'
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(targetJava)
+    targetCompatibility = JavaVersion.toVersion(targetJava)
+}
+
+dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter:5.10.1"
+}
+
+test {
+    useJUnitPlatform()
+}

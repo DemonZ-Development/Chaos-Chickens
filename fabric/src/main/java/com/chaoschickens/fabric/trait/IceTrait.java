@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -44,24 +53,21 @@ public class IceTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.getWorld() instanceof ServerWorld serverWorld)) return;
 
-        // Freeze water blocks the chicken walks on
+        // Freeze water blocks around the chicken (but not the block it's standing in)
         BlockPos chickenPos = chicken.getBlockPos();
         for (int dx = -FREEZE_CHECK_RANGE; dx <= FREEZE_CHECK_RANGE; dx++) {
             for (int dz = -FREEZE_CHECK_RANGE; dz <= FREEZE_CHECK_RANGE; dz++) {
                 BlockPos checkPos = chickenPos.add(dx, -1, dz);
+                // Skip the block directly under the chicken to prevent self-trapping
+                if (checkPos.equals(chickenPos.down())) continue;
                 if (serverWorld.getBlockState(checkPos).isOf(Blocks.WATER)) {
-                    serverWorld.setBlockState(checkPos, Blocks.ICE.getDefaultState());
+                    serverWorld.setBlockState(checkPos, Blocks.FROSTED_ICE.getDefaultState());
                 }
             }
         }
 
-        // Also freeze water at the chicken's feet
-        if (serverWorld.getBlockState(chickenPos).isOf(Blocks.WATER)) {
-            serverWorld.setBlockState(chickenPos, Blocks.ICE.getDefaultState());
-        }
-
         // Spawn snowflake particles
-        if (chicken.age % 15 == 0) {
+        if (chicken.age % 15 == 0 && com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.spawnParticles(
                     ParticleTypes.SNOWFLAKE,
                     chicken.getX(),

@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -30,16 +39,18 @@ public class FireTrait extends BukkitTrait {
     @Override
     public void onTick(Chicken chicken) {
         if (chicken == null || chicken.isDead()) return;
-        // Display fire particles around the chicken
-        chicken.getWorld().spawnParticle(
-                Particle.FLAME,
-                chicken.getLocation().add(0, 0.5, 0),
-                8,      // count
-                0.3,    // offsetX
-                0.3,    // offsetY
-                0.3,    // offsetZ
-                0.02    // speed
-        );
+        if (plugin.getConfigManager().isTraitParticlesEnabled()) {
+            // Display fire particles around the chicken
+            chicken.getWorld().spawnParticle(
+                    Particle.FLAME,
+                    chicken.getLocation().add(0, 0.5, 0),
+                    8,      // count
+                    0.3,    // offsetX
+                    0.3,    // offsetY
+                    0.3,    // offsetZ
+                    0.02    // speed
+            );
+        }
     }
 
     @Override

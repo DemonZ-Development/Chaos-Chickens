@@ -1,8 +1,18 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.mixin;
 
 import com.chaoschickens.common.trait.TraitType;
 import com.chaoschickens.fabric.ChaosChickensFabric;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.passive.ChickenEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -13,26 +23,25 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Mixin into LivingEntity to handle drop modifications for chaos chickens.
- * Specifically handles the Golden trait's ore drops.
+ * Mixin into LivingEntity to handle drop modifications and death behaviors for chaos chickens.
+ * Specifically handles the Golden trait's ore drops and trait death effects.
  */
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin {
 
     /**
-     * Inject after dropLoot to modify drops for golden chickens.
-     * Replaces standard egg/feather drops with random ores.
+     * Inject at HEAD of dropLoot to modify drops for golden chickens.
+     * Cancels default loot drops and replaces them with random ores.
      */
-    @Inject(method = "dropLoot", at = @At("TAIL"))
-    private void chaoschickens$modifyDrops(CallbackInfo ci) {
+    @Inject(method = "dropLoot", at = @At("HEAD"), cancellable = true)
+    private void chaoschickens$modifyDrops(DamageSource source, boolean causedByPlayer, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;
 
         // Only process for chickens with the GOLDEN trait
         if (!(self instanceof ChickenEntity chicken)) return;
 
-        ChaosChickensFabric.getActiveTrait(chicken).ifPresent(type -> {
-            if (type != TraitType.GOLDEN) return;
-
+        TraitType trait = ChaosChickensFabric.getActiveTrait(chicken).orElse(TraitType.EMPTY);
+        if (trait == TraitType.GOLDEN) {
             Random random = chicken.getWorld().getRandom();
             // Drop weighted random ores
             int oreCount = 1 + random.nextInt(3); // 1-3 ore items
@@ -52,6 +61,29 @@ public abstract class LivingEntityMixin {
                 }
                 chicken.dropStack(oreDrop);
             }
-        });
+            ci.cancel(); // Cancel standard chicken drops (feathers, raw chicken)!
+        }
+    }
+
+    /**
+     * Inject at HEAD of onDeath to trigger trait-specific death events (e.g., Explosive trait).
+     */
+    @Inject(method = "onDeath", at = @At("HEAD"))
+    private void chaoschickens$onDeath(DamageSource source, CallbackInfo ci) {
+        try {
+            LivingEntity self = (LivingEntity) (Object) this;
+            if (self instanceof ChickenEntity chicken) {
+                java.util.Optional<TraitType> traitType = ChaosChickensFabric.getActiveTrait(chicken);
+                traitType.ifPresent(type -> {
+                    com.chaoschickens.fabric.trait.FabricTrait trait =
+                            ChaosChickensFabric.getTraitInstance(type);
+                    if (trait != null) {
+                        trait.onDeath(chicken, source);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            // No-op, entity cleanup will happen on EntityMixin.remove()
+        }
     }
 }

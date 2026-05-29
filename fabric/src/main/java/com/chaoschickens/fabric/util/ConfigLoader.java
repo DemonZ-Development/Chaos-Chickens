@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.util;
 
 import com.chaoschickens.common.config.ConfigManager;
@@ -69,17 +78,11 @@ public final class ConfigLoader {
             // Bug #4 fix: Use Gson.fromJson() instead of deprecated JsonParser.parseReader()
             JsonObject root = GSON.fromJson(reader, JsonObject.class);
             if (root != null) {
-                // Config version check and migration
                 int loadedVersion = getSafeInt(root, ConfigVersion.CONFIG_VERSION_KEY, 1);
                 if (ConfigVersion.needsMigration(loadedVersion)) {
                     LOGGER.info("Config version {} is outdated, migrating to version {}...",
                             loadedVersion, ConfigVersion.CURRENT_VERSION);
-                    // Re-save with updated defaults
-                    saveDefault(configPath);
-                    // Reload the migrated config
-                    try (BufferedReader reReader = Files.newBufferedReader(configPath)) {
-                        root = GSON.fromJson(reReader, JsonObject.class);
-                    }
+                    migrateConfig(root, configPath);
                 }
                 parseConfig(root);
                 LOGGER.info("Configuration loaded successfully from {} (v{})", configPath,
@@ -107,6 +110,78 @@ public final class ConfigLoader {
         LOGGER.info("Reloading Chaos Chickens configuration...");
         configManager = new ConfigManager();
         load();
+    }
+
+    private static void migrateConfig(JsonObject root, Path configPath) {
+        root.addProperty(ConfigVersion.CONFIG_VERSION_KEY, ConfigVersion.CURRENT_VERSION);
+
+        Map<String, Object> defaults = new java.util.LinkedHashMap<>();
+        defaults.put("chaosChance", 0.35);
+        defaults.put("enableBossChickens", true);
+        defaults.put("bossChance", 0.02);
+        defaults.put("bossTraitCount", 3);
+        defaults.put("enableTraitParticles", true);
+        defaults.put("enableTraitMessages", true);
+        defaults.put("announceTraitOnSpawn", false);
+        defaults.put("onlyNaturalSpawns", false);
+        defaults.put("maxChickensPerPlayer", -1);
+        defaults.put("checkForUpdates", true);
+        defaults.put("enableFoliaSupport", true);
+        defaults.put("bstatsEnabled", true);
+
+        for (Map.Entry<String, Object> entry : defaults.entrySet()) {
+            if (!root.has(entry.getKey())) {
+                if (entry.getValue() instanceof Boolean) {
+                    root.addProperty(entry.getKey(), (Boolean) entry.getValue());
+                } else if (entry.getValue() instanceof Number) {
+                    root.addProperty(entry.getKey(), (Number) entry.getValue());
+                }
+            }
+        }
+
+        JsonObject traitsObj;
+        if (root.has("traits") && root.get("traits").isJsonObject()) {
+            traitsObj = root.getAsJsonObject("traits");
+        } else {
+            traitsObj = new JsonObject();
+            root.add("traits", traitsObj);
+        }
+
+        String[] defaultTraits = {
+                "explosive", "speed", "fire", "magnet", "golden",
+                "disco", "zombie", "teleport", "ice", "cursed"
+        };
+        boolean[] defaultEnabled = {
+                true, true, true, true, true,
+                true, true, true, true, true
+        };
+        double[] defaultWeights = {
+                1.0, 1.2, 1.0, 0.8, 0.5,
+                1.0, 0.7, 0.6, 0.8, 0.7
+        };
+
+        for (int i = 0; i < defaultTraits.length; i++) {
+            String traitKey = defaultTraits[i];
+            JsonObject trait;
+            if (traitsObj.has(traitKey) && traitsObj.get(traitKey).isJsonObject()) {
+                trait = traitsObj.getAsJsonObject(traitKey);
+            } else {
+                trait = new JsonObject();
+                traitsObj.add(traitKey, trait);
+            }
+            if (!trait.has("enabled")) {
+                trait.addProperty("enabled", defaultEnabled[i]);
+            }
+            if (!trait.has("weight")) {
+                trait.addProperty("weight", defaultWeights[i]);
+            }
+        }
+
+        try (BufferedWriter writer = Files.newBufferedWriter(configPath)) {
+            GSON.toJson(root, writer);
+        } catch (IOException e) {
+            LOGGER.error("Failed to write migrated config", e);
+        }
     }
 
     /**
@@ -178,16 +253,16 @@ public final class ConfigLoader {
         configManager.setConfigVersion(getSafeInt(root, ConfigVersion.CONFIG_VERSION_KEY,
                 ConfigVersion.CURRENT_VERSION));
         configManager.setChaosChance(getSafeDouble(root, "chaosChance", 0.35));
-        configManager.setEnableBossChickens(getSafeBoolean(root, "enableBossChickens", true));
+        configManager.setBossChickensEnabled(getSafeBoolean(root, "enableBossChickens", true));
         configManager.setBossChance(getSafeDouble(root, "bossChance", 0.02));
         configManager.setBossTraitCount(getSafeInt(root, "bossTraitCount", 3));
-        configManager.setEnableTraitParticles(getSafeBoolean(root, "enableTraitParticles", true));
-        configManager.setEnableTraitMessages(getSafeBoolean(root, "enableTraitMessages", true));
+        configManager.setTraitParticlesEnabled(getSafeBoolean(root, "enableTraitParticles", true));
+        configManager.setTraitMessagesEnabled(getSafeBoolean(root, "enableTraitMessages", true));
         configManager.setAnnounceTraitOnSpawn(getSafeBoolean(root, "announceTraitOnSpawn", false));
         configManager.setOnlyNaturalSpawns(getSafeBoolean(root, "onlyNaturalSpawns", false));
         configManager.setMaxChickensPerPlayer(getSafeInt(root, "maxChickensPerPlayer", -1));
-        configManager.setCheckForUpdates(getSafeBoolean(root, "checkForUpdates", true));
-        configManager.setEnableFoliaSupport(getSafeBoolean(root, "enableFoliaSupport", true));
+        configManager.setUpdateCheckingEnabled(getSafeBoolean(root, "checkForUpdates", true));
+        configManager.setFoliaSupportEnabled(getSafeBoolean(root, "enableFoliaSupport", true));
         configManager.setBstatsEnabled(getSafeBoolean(root, "bstatsEnabled", true));
 
         // Parse trait settings

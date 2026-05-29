@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.forge.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -37,15 +46,17 @@ public class DiscoTrait extends ForgeTrait {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.level() instanceof ServerLevel serverLevel)) return;
 
-        // Play random note block sound
-        float pitch = 0.5f + chicken.getRandom().nextFloat() * 1.5f;
-        serverLevel.playSound(null, chicken.getX(), chicken.getY(), chicken.getZ(),
-                SoundEvents.NOTE_BLOCK_HARP.get(), SoundSource.NEUTRAL, 0.5f, pitch);
+        // Play random note block sound (1-in-4 chance to reduce auditory spam)
+        if (chicken.getRandom().nextInt(4) == 0) {
+            float pitch = 0.5f + chicken.getRandom().nextFloat() * 1.5f;
+            serverLevel.playSound(null, chicken.getX(), chicken.getY(), chicken.getZ(),
+                    SoundEvents.NOTE_BLOCK_HARP.get(), SoundSource.NEUTRAL, 0.5f, pitch);
+        }
 
-        // Spawn colorful particles
-        serverLevel.sendParticles(ParticleTypes.ENTITY_EFFECT,
+        // Spawn colorful note particles
+        serverLevel.sendParticles(ParticleTypes.NOTE,
                 chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                8, 0.4, 0.4, 0.4, 1.0);
+                8, 0.5, 0.5, 0.5, 1.0);
 
         // Dye nearby sheep every 2 seconds
         if (chicken.tickCount % 30 == 0) {

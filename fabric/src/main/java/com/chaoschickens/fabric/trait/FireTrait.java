@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -37,8 +46,8 @@ public class FireTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.getWorld() instanceof ServerWorld serverWorld)) return;
 
-        // Spawn flame particles around the chicken
-        if (chicken.age % 10 == 0) {
+        // Spawn flame particles around the chicken (if enabled)
+        if (chicken.age % 10 == 0 && com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.spawnParticles(
                     ParticleTypes.FLAME,
                     chicken.getX(),

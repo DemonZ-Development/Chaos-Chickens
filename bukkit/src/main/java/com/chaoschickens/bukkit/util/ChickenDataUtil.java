@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.util;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -15,17 +24,10 @@ public final class ChickenDataUtil {
 
     private static final String KEY_NAMESPACE = "chaoschickens";
     private static final String KEY_NAME = "trait";
-
     private ChickenDataUtil() {
         // Utility class
     }
 
-    /**
-     * Get the NamespacedKey used to store trait data.
-     *
-     * @param plugin The plugin instance
-     * @return The NamespacedKey for trait storage
-     */
     public static NamespacedKey getTraitKey(JavaPlugin plugin) {
         return new NamespacedKey(plugin, KEY_NAME);
     }
@@ -84,5 +86,33 @@ public final class ChickenDataUtil {
         if (chicken == null) return;
         PersistentDataContainer pdc = chicken.getPersistentDataContainer();
         pdc.remove(getTraitKey(plugin));
+    }
+
+    public static void setBossSubTraits(JavaPlugin plugin, Chicken chicken, java.util.List<TraitType> types) {
+        if (chicken == null || types == null) return;
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        for (TraitType t : types) {
+            keys.add(t.getKey());
+        }
+        String value = String.join(",", keys);
+        NamespacedKey key = new NamespacedKey(plugin, "boss_sub_traits");
+        chicken.getPersistentDataContainer().set(key, PersistentDataType.STRING, value);
+    }
+
+    public static java.util.List<TraitType> getBossSubTraits(JavaPlugin plugin, Chicken chicken) {
+        java.util.List<TraitType> list = new java.util.ArrayList<>();
+        if (chicken == null) return list;
+        NamespacedKey key = new NamespacedKey(plugin, "boss_sub_traits");
+        PersistentDataContainer pdc = chicken.getPersistentDataContainer();
+        if (!pdc.has(key, PersistentDataType.STRING)) return list;
+        String value = pdc.get(key, PersistentDataType.STRING);
+        if (value == null || value.isEmpty()) return list;
+        for (String s : value.split(",")) {
+            TraitType t = TraitType.fromKey(s.trim());
+            if (t != TraitType.EMPTY && t != TraitType.BOSS) {
+                list.add(t);
+            }
+        }
+        return list;
     }
 }

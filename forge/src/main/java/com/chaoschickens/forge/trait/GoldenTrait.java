@@ -1,10 +1,19 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.forge.trait;
 
 import com.chaoschickens.common.trait.TraitType;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.animal.Chicken;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.event.entity.living.LivingDropsEvent;
@@ -29,24 +38,15 @@ public class GoldenTrait extends ForgeTrait {
         if (chicken == null || chicken.isRemoved()) return;
         chicken.setCustomName(Component.literal("Golden Chicken").withStyle(ChatFormatting.GOLD));
         chicken.setCustomNameVisible(true);
-        chicken.setGlowing(true);
-    }
-
-    @Override
-    public void onDeath(Chicken chicken, DamageSource source) {
-        if (chicken == null) return;
-        dropOreItems(chicken);
+        chicken.setGlowingTag(true);
     }
 
     @Override
     public void onModifyDrops(Chicken chicken, LivingDropsEvent event) {
-        if (chicken == null) return;
+        if (chicken == null || event == null) return;
         // Clear default drops and add ore drops
         event.getDrops().clear();
-        dropOreItems(chicken);
-    }
-
-    private void dropOreItems(Chicken chicken) {
+        
         var random = chicken.getRandom();
         int oreCount = 1 + random.nextInt(3);
         for (int i = 0; i < oreCount; i++) {
@@ -63,7 +63,9 @@ public class GoldenTrait extends ForgeTrait {
             } else {
                 oreDrop = new ItemStack(Items.DIAMOND, 1);
             }
-            chicken.spawnAtLocation(oreDrop);
+            ItemEntity itemEntity = new ItemEntity(
+                    chicken.level(), chicken.getX(), chicken.getY(), chicken.getZ(), oreDrop);
+            event.getDrops().add(itemEntity);
         }
     }
 }

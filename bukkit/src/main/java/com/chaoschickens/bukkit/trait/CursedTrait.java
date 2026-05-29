@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -7,7 +16,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Cursed chicken trait.
@@ -17,8 +26,6 @@ public class CursedTrait extends BukkitTrait {
 
     private static final double PROXIMITY_RANGE = 6.0;
     private static final int EFFECT_DURATION = 100; // 5 seconds (in ticks)
-
-    private final Random random = new Random();
 
     /**
      * Possible cursed effects with their durations.
@@ -57,7 +64,7 @@ public class CursedTrait extends BukkitTrait {
 
         // Pick a random cursed effect
         CursedEffect[] effects = CursedEffect.values();
-        CursedEffect chosen = effects[random.nextInt(effects.length)];
+        CursedEffect chosen = effects[ThreadLocalRandom.current().nextInt(effects.length)];
 
         player.addPotionEffect(new PotionEffect(
                 chosen.effectType,

@@ -1,6 +1,17 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.common.config;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Platform-agnostic configuration manager.
@@ -54,7 +65,7 @@ public class ConfigManager {
         return chaosChance;
     }
 
-    public boolean isEnableBossChickens() {
+    public boolean isBossChickensEnabled() {
         return enableBossChickens;
     }
 
@@ -66,11 +77,11 @@ public class ConfigManager {
         return bossTraitCount;
     }
 
-    public boolean isEnableTraitParticles() {
+    public boolean isTraitParticlesEnabled() {
         return enableTraitParticles;
     }
 
-    public boolean isEnableTraitMessages() {
+    public boolean isTraitMessagesEnabled() {
         return enableTraitMessages;
     }
 
@@ -86,11 +97,11 @@ public class ConfigManager {
         return maxChickensPerPlayer;
     }
 
-    public boolean isCheckForUpdates() {
+    public boolean isUpdateCheckingEnabled() {
         return checkForUpdates;
     }
 
-    public boolean isEnableFoliaSupport() {
+    public boolean isFoliaSupportEnabled() {
         return enableFoliaSupport;
     }
 
@@ -138,7 +149,7 @@ public class ConfigManager {
         this.chaosChance = Math.max(0.0, Math.min(1.0, chaosChance));
     }
 
-    public void setEnableBossChickens(boolean enableBossChickens) {
+    public void setBossChickensEnabled(boolean enableBossChickens) {
         this.enableBossChickens = enableBossChickens;
     }
 
@@ -150,11 +161,11 @@ public class ConfigManager {
         this.bossTraitCount = Math.max(1, Math.min(10, bossTraitCount));
     }
 
-    public void setEnableTraitParticles(boolean enableTraitParticles) {
+    public void setTraitParticlesEnabled(boolean enableTraitParticles) {
         this.enableTraitParticles = enableTraitParticles;
     }
 
-    public void setEnableTraitMessages(boolean enableTraitMessages) {
+    public void setTraitMessagesEnabled(boolean enableTraitMessages) {
         this.enableTraitMessages = enableTraitMessages;
     }
 
@@ -170,11 +181,11 @@ public class ConfigManager {
         this.maxChickensPerPlayer = maxChickensPerPlayer;
     }
 
-    public void setCheckForUpdates(boolean checkForUpdates) {
+    public void setUpdateCheckingEnabled(boolean checkForUpdates) {
         this.checkForUpdates = checkForUpdates;
     }
 
-    public void setEnableFoliaSupport(boolean enableFoliaSupport) {
+    public void setFoliaSupportEnabled(boolean enableFoliaSupport) {
         this.enableFoliaSupport = enableFoliaSupport;
     }
 

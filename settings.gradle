@@ -1,0 +1,19 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+        maven {
+            name = 'Minecraft Forge'
+            url = 'https://maven.minecraftforge.net/'
+        }
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'chaoschickens'
+include 'common'
+include 'bukkit'
+include 'fabric'
+include 'forge'

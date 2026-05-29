@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.listener;
 
 import com.chaoschickens.bukkit.ChaosChickensBukkit;
@@ -44,6 +53,15 @@ public class ChickenSpawnListener implements Listener {
 
         Chicken chicken = (Chicken) event.getEntity();
 
+        // Check if only natural spawns should be affected (allow spawn eggs to bypass)
+        if (plugin.getConfigManager().isOnlyNaturalSpawns()) {
+            CreatureSpawnEvent.SpawnReason reason = event.getSpawnReason();
+            if (reason != CreatureSpawnEvent.SpawnReason.NATURAL &&
+                    reason != CreatureSpawnEvent.SpawnReason.SPAWNER_EGG) {
+                return;
+            }
+        }
+
         // Handle spawn egg with chaos trait PDC
         if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.SPAWNER_EGG) {
             // Find the nearest player and check for a pending egg trait
@@ -65,12 +83,39 @@ public class ChickenSpawnListener implements Listener {
                     return;
                 }
             }
+            // If only-natural-spawns is enabled, and this wasn't a custom chaos egg, do not roll a trait
+            if (plugin.getConfigManager().isOnlyNaturalSpawns()) {
+                return;
+            }
         }
 
-        // Check if only natural spawns should be affected
-        if (plugin.getConfigManager().isOnlyNaturalSpawns()) {
-            CreatureSpawnEvent.SpawnReason reason = event.getSpawnReason();
-            if (reason != CreatureSpawnEvent.SpawnReason.NATURAL) {
+        // Check for max chickens per player limit
+        int max = plugin.getConfigManager().getMaxChickensPerPlayer();
+        if (max > -1) {
+            Player nearestPlayer = null;
+            double nearestDist = Double.MAX_VALUE;
+            for (org.bukkit.entity.Entity nearby : chicken.getNearbyEntities(64, 64, 64)) {
+                if (nearby instanceof Player) {
+                    double dist = nearby.getLocation().distanceSquared(chicken.getLocation());
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestPlayer = (Player) nearby;
+                    }
+                }
+            }
+            if (nearestPlayer != null) {
+                int count = plugin.getActiveChickenCountForPlayer(nearestPlayer);
+                if (count >= max) {
+                    return;
+                }
+            }
+        }
+
+        // Check for boss chicken first (independent roll)
+        if (plugin.getConfigManager().isBossChickensEnabled()) {
+            double bossChance = plugin.getConfigManager().getBossChance();
+            if (plugin.getRandom().nextDouble() < bossChance) {
+                applyBossTrait(chicken);
                 return;
             }
         }
@@ -78,15 +123,6 @@ public class ChickenSpawnListener implements Listener {
         // Roll for chaos chance
         double chaosChance = plugin.getConfigManager().getChaosChance();
         if (plugin.getRandom().nextDouble() >= chaosChance) return;
-
-        // Check for boss chicken first
-        if (plugin.getConfigManager().isEnableBossChickens()) {
-            double bossChance = plugin.getConfigManager().getBossChance();
-            if (plugin.getRandom().nextDouble() < bossChance) {
-                applyBossTrait(chicken);
-                return;
-            }
-        }
 
         // Pick a random trait and apply it
         TraitType traitType = plugin.pickRandomTrait();
@@ -99,7 +135,7 @@ public class ChickenSpawnListener implements Listener {
      * Detect when a player uses a chaos chicken spawn egg and register the pending trait.
      * This ensures the spawned chicken gets the correct trait from the egg's PDC data.
      */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
 
@@ -117,9 +153,23 @@ public class ChickenSpawnListener implements Listener {
             TraitType traitType = TraitType.fromKey(traitKey);
             if (traitType != TraitType.EMPTY) {
                 pendingEggTraits.put(event.getPlayer().getUniqueId(), traitType);
-                // Auto-cleanup after 5 seconds in case the spawn fails
-                plugin.getServer().getScheduler().runTaskLater(plugin,
-                        () -> pendingEggTraits.remove(event.getPlayer().getUniqueId()), 100L);
+                if (plugin.isFolia()) {
+                    try {
+                        Class<?> globalSchedulerClass = Class.forName(
+                                "io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler");
+                        Object globalScheduler = org.bukkit.Bukkit.class.getMethod("getGlobalRegionScheduler").invoke(null);
+                        java.lang.reflect.Method runDelayed = globalSchedulerClass.getMethod("runDelayed",
+                                org.bukkit.plugin.Plugin.class, java.util.function.Consumer.class, long.class);
+                        runDelayed.invoke(globalScheduler, plugin, (java.util.function.Consumer<Object>) scheduledTask -> 
+                                pendingEggTraits.remove(event.getPlayer().getUniqueId()), 100L);
+                    } catch (Exception e) {
+                        plugin.getServer().getScheduler().runTaskLater(plugin,
+                                () -> pendingEggTraits.remove(event.getPlayer().getUniqueId()), 100L);
+                    }
+                } else {
+                    plugin.getServer().getScheduler().runTaskLater(plugin,
+                            () -> pendingEggTraits.remove(event.getPlayer().getUniqueId()), 100L);
+                }
             }
         }
     }
@@ -130,5 +180,29 @@ public class ChickenSpawnListener implements Listener {
     private void applyBossTrait(Chicken chicken) {
         plugin.assignTrait(chicken, TraitType.BOSS);
         // onApply is already called inside assignTrait(), no duplicate call needed
+    }
+
+    @EventHandler
+    public void onEntitiesLoad(org.bukkit.event.world.EntitiesLoadEvent event) {
+        for (org.bukkit.entity.Entity entity : event.getEntities()) {
+            if (entity instanceof Chicken) {
+                Chicken chicken = (Chicken) entity;
+                if (ChickenDataUtil.hasTrait(plugin, chicken)) {
+                    TraitType trait = ChickenDataUtil.getTrait(plugin, chicken);
+                    if (trait != TraitType.EMPTY) {
+                        plugin.registerLoadedChicken(chicken, trait);
+                    }
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    public void onEntitiesUnload(org.bukkit.event.world.EntitiesUnloadEvent event) {
+        for (org.bukkit.entity.Entity entity : event.getEntities()) {
+            if (entity instanceof Chicken) {
+                plugin.unregisterLoadedChicken(entity.getUniqueId());
+            }
+        }
     }
 }

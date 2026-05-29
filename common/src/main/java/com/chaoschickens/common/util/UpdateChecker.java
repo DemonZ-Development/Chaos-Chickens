@@ -30,21 +30,25 @@ import java.util.logging.Logger;
  */
 public final class UpdateChecker {
 
+    private static final String PROJECT_ID = "chLbYS1k";
     private static final String PROJECT_SLUG = "chaos-chickens";
     private static final String MODRINTH_API_URL =
-            "https://api.modrinth.com/v2/project/" + PROJECT_SLUG + "/version";
+            "https://api.modrinth.com/v2/project/" + PROJECT_ID + "/version";
     private static final String MODRINTH_PROJECT_URL =
             "https://modrinth.com/project/" + PROJECT_SLUG;
     private static final Logger LOGGER = Logger.getLogger("ChaosChickens/UpdateChecker");
-    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(
+    private static final java.util.concurrent.ScheduledExecutorService EXECUTOR = Executors.newSingleThreadScheduledExecutor(
             r -> { Thread t = new Thread(r, "ChaosChickens-UpdateChecker"); t.setDaemon(true); return t; }
     );
 
-    private static String latestVersion = null;
-    private static String currentVersion = null;
-    private static boolean updateAvailable = false;
+    private static volatile String latestVersion = null;
+    private static volatile String currentVersion = null;
+    private static volatile boolean updateAvailable = false;
+    private static volatile java.util.function.Consumer<Boolean> updateCallback = null;
 
     private UpdateChecker() {}
+
+
 
     /**
      * Set the current plugin/mod version for comparison.
@@ -52,6 +56,13 @@ public final class UpdateChecker {
      * @param version The current version string (e.g., "1.0.0")
      */
     public static void setCurrentVersion(String version) {
+        if (version == null) {
+            currentVersion = "";
+            return;
+        }
+        if (version.startsWith("v") || version.startsWith("V")) {
+            version = version.substring(1);
+        }
         currentVersion = version;
     }
 
@@ -97,6 +108,13 @@ public final class UpdateChecker {
                         LOGGER.info("Download at: " + MODRINTH_PROJECT_URL);
                     } else {
                         LOGGER.info("Chaos Chickens is up to date (v" + currentVersion + ")");
+                    }
+                    if (updateCallback != null) {
+                        try {
+                            updateCallback.accept(updateAvailable);
+                        } catch (Exception e) {
+                            // ignore
+                        }
                     }
                 }
 
@@ -167,8 +185,8 @@ public final class UpdateChecker {
 
             // Clean up the version string: unescape any JSON escape sequences
             String version = rawVersion
-                    .replace("\\\"", "\"")
                     .replace("\\\\", "\\")
+                    .replace("\\\"", "\"")
                     .replace("\\/", "/");
 
             // Strip any leading "v" prefix for consistent comparison
@@ -211,5 +229,34 @@ public final class UpdateChecker {
         return "A new version of Chaos Chickens is available: v" + latestVersion +
                 " (you have v" + currentVersion + "). Download at: " +
                 MODRINTH_PROJECT_URL;
+    }
+
+    /**
+     * Register a callback to run when an update check completes.
+     */
+    public static void setUpdateCallback(java.util.function.Consumer<Boolean> callback) {
+        updateCallback = callback;
+    }
+
+    /**
+     * Start scheduled update checking every N hours.
+     */
+    public static void startScheduledUpdateChecks(long intervalHours) {
+        EXECUTOR.scheduleAtFixedRate(() -> {
+            try {
+                checkForUpdates();
+            } catch (Exception e) {
+                LOGGER.warning("Failed to run scheduled update check: " + e.getMessage());
+            }
+        }, intervalHours, intervalHours, java.util.concurrent.TimeUnit.HOURS);
+    }
+
+    /**
+     * Shutdown the update checker executor.
+     */
+    public static void shutdown() {
+        try {
+            EXECUTOR.shutdown();
+        } catch (Exception ignored) {}
     }
 }

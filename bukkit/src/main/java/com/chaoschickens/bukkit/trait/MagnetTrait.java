@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -42,33 +51,18 @@ public class MagnetTrait extends BukkitTrait {
                 if (item.isDead()) continue;
 
                 // Pull item toward chicken
-                org.bukkit.util.Vector direction = chicken.getLocation().toVector()
-                        .subtract(item.getLocation().toVector())
-                        .normalize()
-                        .multiply(PULL_SPEED);
+                org.bukkit.util.Vector diff = chicken.getLocation().toVector()
+                        .subtract(item.getLocation().toVector());
+                if (diff.lengthSquared() < 0.01) continue;
+                org.bukkit.util.Vector direction = diff.normalize().multiply(PULL_SPEED);
                 item.setVelocity(direction);
 
                 // Chance to steal (remove) the item
-                if (getPluginRandom(chicken).nextDouble() < STEAL_CHANCE) {
+                if (plugin.getRandom().nextDouble() < STEAL_CHANCE) {
                     item.remove();
                 }
             }
         }
     }
 
-    /**
-     * Get a shared Random instance from the plugin, or fallback to a cached one.
-     */
-    private java.util.Random getPluginRandom(Chicken chicken) {
-        try {
-            org.bukkit.plugin.Plugin plugin =
-                    org.bukkit.Bukkit.getPluginManager().getPlugin("ChaosChickens");
-            if (plugin instanceof ChaosChickensBukkit) {
-                return ((ChaosChickensBukkit) plugin).getRandom();
-            }
-        } catch (Exception ignored) {}
-        return FALLBACK_RANDOM;
-    }
-
-    private static final java.util.Random FALLBACK_RANDOM = new java.util.Random();
 }

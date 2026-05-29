@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.listener;
 
 import com.chaoschickens.bukkit.ChaosChickensBukkit;
@@ -34,8 +43,8 @@ public class ChickenInteractListener implements Listener {
         if (!player.hasPermission("chaoschickens.see_traits")) return;
 
         // Check if player is holding nothing (empty hand)
-        if (player.getInventory().getItem(event.getHand()) != null &&
-                !player.getInventory().getItem(event.getHand()).getType().isAir()) {
+        org.bukkit.inventory.ItemStack handItem = player.getInventory().getItem(event.getHand());
+        if (handItem != null && !handItem.getType().isAir()) {
             return;
         }
 

@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.forge.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -43,23 +52,19 @@ public class IceTrait extends ForgeTrait {
 
         BlockPos chickenPos = chicken.blockPosition();
 
-        // Freeze water blocks the chicken walks on
+        // Freeze water blocks the chicken walks on (skip the chicken's own position)
         for (int dx = -FREEZE_CHECK_RANGE; dx <= FREEZE_CHECK_RANGE; dx++) {
             for (int dz = -FREEZE_CHECK_RANGE; dz <= FREEZE_CHECK_RANGE; dz++) {
                 BlockPos checkPos = chickenPos.offset(dx, -1, dz);
+                if (checkPos.equals(chickenPos)) continue;
                 if (serverLevel.getBlockState(checkPos).is(Blocks.WATER)) {
-                    serverLevel.setBlockAndUpdate(checkPos, Blocks.ICE.defaultBlockState());
+                    serverLevel.setBlockAndUpdate(checkPos, Blocks.FROSTED_ICE.defaultBlockState());
                 }
             }
         }
 
-        // Freeze water at chicken's feet
-        if (serverLevel.getBlockState(chickenPos).is(Blocks.WATER)) {
-            serverLevel.setBlockAndUpdate(chickenPos, Blocks.ICE.defaultBlockState());
-        }
-
         // Snowflake particles
-        if (chicken.tickCount % 15 == 0) {
+        if (chicken.tickCount % 15 == 0 && com.chaoschickens.forge.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverLevel.sendParticles(ParticleTypes.SNOWFLAKE,
                     chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
                     4, 0.3, 0.3, 0.3, 0.02);

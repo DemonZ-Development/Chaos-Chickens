@@ -4,11 +4,12 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "ChickenEntityMixin",
-    "LivingEntityMixin"
+    "LivingEntityMixin",
+    "EntityMixin"
   ],
   "client": [],
   "server": [],
   "injectors": {
-    "defaultRequire": 1
+    "defaultRequire": 0
   }
 }

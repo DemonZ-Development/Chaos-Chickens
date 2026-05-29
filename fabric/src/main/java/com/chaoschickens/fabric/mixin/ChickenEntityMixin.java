@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.mixin;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -24,11 +33,23 @@ public abstract class ChickenEntityMixin {
      */
     @Inject(method = "readCustomDataFromNbt", at = @At("TAIL"))
     private void chaoschickens$readTrait(NbtCompound nbt, CallbackInfo ci) {
+        ChickenEntity self = (ChickenEntity) (Object) this;
+        ChaosChickensFabric.addCheckedChicken(self.getUuid());
+        if (nbt.contains("BossSubTraits", NbtCompound.STRING_TYPE)) {
+            String subTraitsStr = nbt.getString("BossSubTraits");
+            java.util.List<TraitType> list = new java.util.ArrayList<>();
+            for (String s : subTraitsStr.split(",")) {
+                TraitType t = TraitType.fromKey(s.trim());
+                if (t != TraitType.EMPTY && t != TraitType.BOSS) {
+                    list.add(t);
+                }
+            }
+            ChickenDataUtil.setBossSubTraits(self, list);
+        }
         if (nbt.contains(ChickenDataUtil.NBT_KEY, NbtCompound.STRING_TYPE)) {
             String traitKey = nbt.getString(ChickenDataUtil.NBT_KEY);
             TraitType type = TraitType.fromKey(traitKey);
             if (type != TraitType.EMPTY) {
-                ChickenEntity self = (ChickenEntity) (Object) this;
                 ChaosChickensFabric.addActiveChicken(self.getUuid(), type);
 
                 // Re-apply trait effects (custom name, attributes, etc.)
@@ -48,6 +69,15 @@ public abstract class ChickenEntityMixin {
     @Inject(method = "writeCustomDataToNbt", at = @At("TAIL"))
     private void chaoschickens$writeTrait(NbtCompound nbt, CallbackInfo ci) {
         ChickenEntity self = (ChickenEntity) (Object) this;
+        nbt.putBoolean("ChaosChickensChecked", true);
+        java.util.List<TraitType> subTraits = ChickenDataUtil.getBossSubTraits(self);
+        if (!subTraits.isEmpty()) {
+            java.util.List<String> keys = new java.util.ArrayList<>();
+            for (TraitType t : subTraits) {
+                keys.add(t.getKey());
+            }
+            nbt.putString("BossSubTraits", String.join(",", keys));
+        }
         // Check pending traits first (from setTrait)
         if (ChickenDataUtil.hasPendingTrait(self.getUuid())) {
             TraitType pending = ChickenDataUtil.getAndClearPending(self.getUuid());
@@ -57,32 +87,5 @@ public abstract class ChickenEntityMixin {
         // Otherwise check active tracking
         java.util.Optional<TraitType> traitType = ChaosChickensFabric.getActiveTrait(self);
         traitType.ifPresent(type -> nbt.putString(ChickenDataUtil.NBT_KEY, type.getKey()));
-    }
-
-    /**
-     * Inject at the head of onDeath to handle trait-specific death behavior.
-     * This ensures effects like explosions happen before the entity is fully removed.
-     */
-    @Inject(method = "onDeath", at = @At("HEAD"))
-    private void chaoschickens$onDeath(CallbackInfo ci) {
-        ChickenEntity self = (ChickenEntity) (Object) this;
-        java.util.Optional<TraitType> traitType = ChaosChickensFabric.getActiveTrait(self);
-        traitType.ifPresent(type -> {
-            com.chaoschickens.fabric.trait.FabricTrait trait =
-                    ChaosChickensFabric.getTraitInstance(type);
-            if (trait != null) {
-                trait.onDeath(self, self.getRecentDamageSource());
-            }
-            ChaosChickensFabric.removeActiveChicken(self.getUuid());
-        });
-    }
-
-    /**
-     * Inject at the head of remove to clean up tracking when entity is removed.
-     */
-    @Inject(method = "remove", at = @At("HEAD"))
-    private void chaoschickens$onRemove(CallbackInfo ci) {
-        ChickenEntity self = (ChickenEntity) (Object) this;
-        ChaosChickensFabric.removeActiveChicken(self.getUuid());
     }
 }

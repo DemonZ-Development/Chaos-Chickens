@@ -1,0 +1,67 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+}
+
+group = 'com.chaoschickens'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven { url = "https://hub.spigotmc.org/nexus/content/repositories/snapshots/" }
+    maven { url = "https://repo.papermc.io/repository/maven-public/" }
+    maven { url = "https://repo.codemc.org/repository/maven-public/" }
+    maven { url = "https://jitpack.io" }
+}
+
+dependencies {
+    // Spigot API (provided)
+    compileOnly "org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT"
+
+    // ChaosChickens Common Module
+    implementation project(':common')
+
+    // bStats Metrics
+    implementation "org.bstats:bstats-bukkit:3.0.2"
+
+    // MockBukkit for testing
+    testImplementation "com.github.seeseemelk:MockBukkit-v1.20:3.57.0"
+    testImplementation "org.junit.jupiter:junit-jupiter:5.10.1"
+}
+
+def targetJava = project.hasProperty('targetJava') ? project.property('targetJava').toString() : '17'
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(targetJava)
+    targetCompatibility = JavaVersion.toVersion(targetJava)
+}
+
+test {
+    useJUnitPlatform()
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("plugin.yml") {
+        expand "project": project
+    }
+}
+
+jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    from {
+        project(':common').sourceSets.main.output
+    }
+    
+    from {
+        configurations.runtimeClasspath
+            .filter { it.name.endsWith('.jar') && !it.name.contains("common") }
+            .collect { zipTree(it) }
+    }
+    
+    exclude 'META-INF/maven/**'
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
+}

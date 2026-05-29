@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.common.trait.AbstractTrait;
@@ -11,6 +20,12 @@ import org.bukkit.event.entity.EntityDeathEvent;
  * with Bukkit-specific lifecycle methods for chicken entities.
  */
 public abstract class BukkitTrait extends AbstractTrait {
+
+    protected static com.chaoschickens.bukkit.ChaosChickensBukkit plugin;
+
+    public static void setPlugin(com.chaoschickens.bukkit.ChaosChickensBukkit p) {
+        plugin = p;
+    }
 
     /**
      * Construct a new BukkitTrait.

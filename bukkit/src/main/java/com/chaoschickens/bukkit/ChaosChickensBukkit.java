@@ -46,10 +46,11 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
     private final ConfigManager configManager = new ConfigManager();
     private final Map<TraitType, BukkitTrait> traitMap = new LinkedHashMap<>();
     private final Map<UUID, TraitType> activeChickens = new ConcurrentHashMap<>(); // Bug #7 fix: ConcurrentHashMap
+    private final Map<UUID, Chicken> loadedChickens = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> chickenTickCounters = new ConcurrentHashMap<>(); // Per-chicken tick tracking
     private final Random random = new Random(); // Bug #9 fix: shared Random instance
     private boolean isFolia = false;
-    private boolean foliaTaskRunning = false;
+    private volatile boolean foliaTaskRunning = false;
 
     private BukkitTask traitTickTask;
 
@@ -61,14 +62,17 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         // Detect Folia
         detectFolia();
 
-        // Load configuration
-        loadConfig();
-
         // Initialize the API
         ChaosChickensAPI.initialize();
 
         // Register all traits
         registerTraits();
+
+        // Load configuration
+        loadConfig();
+
+        // Set plugin reference in BukkitTrait base class for shared Random access
+        BukkitTrait.setPlugin(this);
 
         // Register listeners
         registerListeners();
@@ -112,21 +116,51 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         }
 
         // Check for updates via Modrinth
-        if (configManager.isCheckForUpdates()) {
+        if (configManager.isUpdateCheckingEnabled()) {
             String version = getDescription().getVersion();
             UpdateChecker.setCurrentVersion(version);
-            UpdateChecker.checkForUpdates().thenAccept(available -> {
+            UpdateChecker.setUpdateCallback(available -> {
                 if (available) {
-                    getLogger().info(UpdateChecker.getUpdateMessage());
-                    // Notify online admins
-                    for (Player player : Bukkit.getOnlinePlayers()) {
-                        if (player.hasPermission("chaoschickens.admin")) {
-                            player.sendMessage(org.bukkit.ChatColor.GOLD + "[ChaosChickens] " +
-                                    org.bukkit.ChatColor.YELLOW + UpdateChecker.getUpdateMessage());
+                    // Notify online admins on the main thread
+                    if (isFolia) {
+                        try {
+                            Class<?> globalSchedulerClass = Class.forName(
+                                    "io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler");
+                            Object globalScheduler = Bukkit.class.getMethod("getGlobalRegionScheduler").invoke(null);
+                            java.lang.reflect.Method run = globalSchedulerClass.getMethod("run",
+                                    org.bukkit.plugin.Plugin.class, java.util.function.Consumer.class);
+                            run.invoke(globalScheduler, this, (java.util.function.Consumer<Object>) task -> {
+                                for (Player player : Bukkit.getOnlinePlayers()) {
+                                    if (player.hasPermission("chaoschickens.admin")) {
+                                        player.sendMessage(org.bukkit.ChatColor.GOLD + "[ChaosChickens] " +
+                                                org.bukkit.ChatColor.YELLOW + UpdateChecker.getUpdateMessage());
+                                    }
+                                }
+                            });
+                        } catch (Exception e) {
+                            Bukkit.getScheduler().runTask(this, () -> {
+                                for (Player player : Bukkit.getOnlinePlayers()) {
+                                    if (player.hasPermission("chaoschickens.admin")) {
+                                        player.sendMessage(org.bukkit.ChatColor.GOLD + "[ChaosChickens] " +
+                                                org.bukkit.ChatColor.YELLOW + UpdateChecker.getUpdateMessage());
+                                    }
+                                }
+                            });
                         }
+                    } else {
+                        Bukkit.getScheduler().runTask(this, () -> {
+                            for (Player player : Bukkit.getOnlinePlayers()) {
+                                if (player.hasPermission("chaoschickens.admin")) {
+                                    player.sendMessage(org.bukkit.ChatColor.GOLD + "[ChaosChickens] " +
+                                            org.bukkit.ChatColor.YELLOW + UpdateChecker.getUpdateMessage());
+                                }
+                            }
+                        });
                     }
                 }
             });
+            UpdateChecker.checkForUpdates();
+            UpdateChecker.startScheduledUpdateChecks(5);
         }
 
         getLogger().info("ChaosChickens v" + getDescription().getVersion() + " has been enabled!");
@@ -148,6 +182,9 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         // Clear active chickens map
         activeChickens.clear();
         chickenTickCounters.clear();
+
+        // Shutdown update checker
+        UpdateChecker.shutdown();
 
         getLogger().info("ChaosChickens has been disabled!");
     }
@@ -203,16 +240,16 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
 
         configManager.setConfigVersion(ConfigVersion.CURRENT_VERSION);
         configManager.setChaosChance(config.getDouble("chaos-chance", 0.35));
-        configManager.setEnableBossChickens(config.getBoolean("enable-boss-chickens", true));
+        configManager.setBossChickensEnabled(config.getBoolean("enable-boss-chickens", true));
         configManager.setBossChance(config.getDouble("boss-chance", 0.02));
         configManager.setBossTraitCount(config.getInt("boss-trait-count", 3));
-        configManager.setEnableTraitParticles(config.getBoolean("enable-particles", true));
-        configManager.setEnableTraitMessages(config.getBoolean("enable-messages", true));
+        configManager.setTraitParticlesEnabled(config.getBoolean("enable-particles", true));
+        configManager.setTraitMessagesEnabled(config.getBoolean("enable-messages", true));
         configManager.setAnnounceTraitOnSpawn(config.getBoolean("announce-trait-on-spawn", false));
         configManager.setOnlyNaturalSpawns(config.getBoolean("only-natural-spawns", false));
         configManager.setMaxChickensPerPlayer(config.getInt("max-chickens-per-player", -1));
-        configManager.setCheckForUpdates(config.getBoolean("check-for-updates", true));
-        configManager.setEnableFoliaSupport(config.getBoolean("enable-folia-support", true));
+        configManager.setUpdateCheckingEnabled(config.getBoolean("check-for-updates", true));
+        configManager.setFoliaSupportEnabled(config.getBoolean("enable-folia-support", true));
         configManager.setBstatsEnabled(config.getBoolean("bstats-enabled", true));
 
         // Load trait-specific config
@@ -326,7 +363,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
      * Uses Folia-compatible scheduling when Folia is detected.
      */
     private void startTraitTickTask() {
-        if (isFolia && configManager.isEnableFoliaSupport()) {
+        if (isFolia && configManager.isFoliaSupportEnabled()) {
             startFoliaTraitTickTask();
         } else {
             startBukkitTraitTickTask();
@@ -354,16 +391,14 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
      */
     private void startFoliaTraitTickTask() {
         try {
-            // Use reflection to access Folia's RegionScheduler API
-            // This avoids compile-time dependency on Paper/Folia-specific classes
-            Class<?> regionSchedulerClass = Class.forName(
-                    "io.papermc.paper.threadedregions.scheduler.RegionScheduler");
-            Object regionScheduler = Bukkit.class.getMethod("getRegionScheduler").invoke(null);
-            java.lang.reflect.Method runAtFixedRate = regionSchedulerClass.getMethod(
+            // Use reflection to access Folia's GlobalRegionScheduler API
+            Class<?> globalSchedulerClass = Class.forName(
+                    "io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler");
+            Object globalScheduler = Bukkit.class.getMethod("getGlobalRegionScheduler").invoke(null);
+            java.lang.reflect.Method runAtFixedRate = globalSchedulerClass.getMethod(
                     "runAtFixedRate",
                     org.bukkit.plugin.Plugin.class,
                     java.util.function.Consumer.class,
-                    org.bukkit.Location.class,
                     long.class, long.class);
 
             // Create a consumer that cancels when foliaTaskRunning is false
@@ -377,11 +412,11 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
                 tickAllChickens();
             };
 
-            runAtFixedRate.invoke(regionScheduler, this, taskConsumer, (org.bukkit.Location) null, 20L, 10L);
+            runAtFixedRate.invoke(globalScheduler, this, taskConsumer, 20L, 10L);
             foliaTaskRunning = true;
-            getLogger().info("Folia RegionScheduler task started successfully.");
+            getLogger().info("Folia GlobalRegionScheduler task started successfully.");
         } catch (Exception e) {
-            getLogger().warning("Failed to start Folia RegionScheduler, falling back to standard scheduling: " + e.getMessage());
+            getLogger().warning("Failed to start Folia GlobalRegionScheduler, falling back to standard scheduling: " + e.getMessage());
             startBukkitTraitTickTask();
         }
     }
@@ -399,62 +434,83 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
             TraitType traitType = activeChickens.get(chickenUUID);
             if (traitType == null) continue;
 
-            // Get the entity by UUID — iterate living entities for Spigot compatibility
-            Entity entity = null;
-            for (org.bukkit.World world : Bukkit.getWorlds()) {
-                for (Entity e : world.getEntities()) {
-                    if (e.getUniqueId().equals(chickenUUID)) {
-                        entity = e;
-                        break;
-                    }
-                }
-                if (entity != null) break;
+            Chicken chicken = loadedChickens.get(chickenUUID);
+            if (chicken == null) {
+                // If it is not in the loaded map, skip ticking (it might be in an unloaded chunk)
+                continue;
             }
 
             // Remove if entity is gone
-            if (entity == null || entity.isDead() || !(entity instanceof Chicken)) {
+            if (chicken.isDead() || !chicken.isValid()) {
                 activeChickens.remove(chickenUUID);
+                loadedChickens.remove(chickenUUID);
                 chickenTickCounters.remove(chickenUUID);
                 continue;
             }
 
-            Chicken chicken = (Chicken) entity;
+            if (isFolia) {
+                try {
+                    // Reflectively invoke Folia's EntityScheduler run(Plugin, Consumer<ScheduledTask>, Runnable)
+                    Object scheduler = chicken.getClass().getMethod("getScheduler").invoke(chicken);
+                    Class<?> consumerClass = Class.forName("java.util.function.Consumer");
+                    java.lang.reflect.Method runMethod = scheduler.getClass().getMethod("run",
+                            org.bukkit.plugin.Plugin.class, consumerClass, Runnable.class);
 
-            // Increment per-chicken tick counter
-            int ticks = chickenTickCounters.merge(chickenUUID, 1, Integer::sum);
+                    runMethod.invoke(scheduler, this, (java.util.function.Consumer<Object>) task -> {
+                        tickSingleChicken(chicken, traitType);
+                    }, null);
+                } catch (Exception e) {
+                    // Fallback to ticking on current thread
+                    tickSingleChicken(chicken, traitType);
+                }
+            } else {
+                tickSingleChicken(chicken, traitType);
+            }
+        }
+    }
 
-            // Get the trait implementation
-            BukkitTrait trait = traitMap.get(traitType);
-            if (trait == null) continue;
+    private void tickSingleChicken(Chicken chicken, TraitType traitType) {
+        if (chicken == null || chicken.isDead()) {
+            activeChickens.remove(chicken.getUniqueId());
+            chickenTickCounters.remove(chicken.getUniqueId());
+            return;
+        }
 
-            // Handle periodic ticking (Bug #2 fix)
-            if (trait.isPeriodic()) {
-                int tickInterval = trait.getTickInterval();
-                // Convert: task fires every 10 game ticks, so game ticks elapsed = ticks * 10
-                // Fire when game ticks elapsed is a multiple of tickInterval
-                if ((ticks * 10) % Math.max(1, tickInterval) == 0) {
-                    try {
-                        trait.onTick(chicken);
-                    } catch (Exception e) {
-                        getLogger().log(Level.WARNING,
-                                "Error ticking trait " + traitType.getKey() + " for chicken " + chickenUUID, e);
-                    }
+        UUID chickenUUID = chicken.getUniqueId();
+        // Increment per-chicken tick counter
+        int ticks = chickenTickCounters.merge(chickenUUID, 1, Integer::sum);
+
+        // Get the trait implementation
+        BukkitTrait trait = traitMap.get(traitType);
+        if (trait == null) return;
+
+        // Handle periodic ticking (Bug #2 fix)
+        if (trait.isPeriodic()) {
+            int tickInterval = trait.getTickInterval();
+            // Convert: task fires every 10 game ticks, so game ticks elapsed = ticks * 10
+            // Fire when game ticks elapsed is a multiple of tickInterval
+            if ((ticks * 10) % Math.max(1, tickInterval) == 0) {
+                try {
+                    trait.onTick(chicken);
+                } catch (Exception e) {
+                    getLogger().log(Level.WARNING,
+                            "Error ticking trait " + traitType.getKey() + " for chicken " + chickenUUID, e);
                 }
             }
+        }
 
-            // Handle proximity-based effects (every 20 ticks / 2 global cycles)
-            double proximityRange = trait.getProximityRange();
-            if (proximityRange > 0 && ticks % 2 == 0) {
-                for (Entity nearbyEntity : chicken.getNearbyEntities(
-                        proximityRange, proximityRange, proximityRange)) {
-                    if (nearbyEntity instanceof Player) {
-                        Player player = (Player) nearbyEntity;
-                        try {
-                            trait.onPlayerNear(chicken, player);
-                        } catch (Exception e) {
-                            getLogger().log(Level.WARNING,
-                                    "Error in proximity check for trait " + traitType.getKey(), e);
-                        }
+        // Handle proximity-based effects (every 20 ticks / 2 global cycles)
+        double proximityRange = trait.getProximityRange();
+        if (proximityRange > 0 && ticks % 2 == 0) {
+            for (Entity nearbyEntity : chicken.getNearbyEntities(
+                    proximityRange, proximityRange, proximityRange)) {
+                if (nearbyEntity instanceof Player) {
+                    Player player = (Player) nearbyEntity;
+                    try {
+                        trait.onPlayerNear(chicken, player);
+                    } catch (Exception e) {
+                        getLogger().log(Level.WARNING,
+                                "Error in proximity check for trait " + traitType.getKey(), e);
                     }
                 }
             }
@@ -473,18 +529,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
                     if (ChickenDataUtil.hasTrait(this, chicken)) {
                         TraitType traitType = ChickenDataUtil.getTrait(this, chicken);
                         if (traitType != TraitType.EMPTY) {
-                            activeChickens.put(chicken.getUniqueId(), traitType);
-                            chickenTickCounters.put(chicken.getUniqueId(), 0);
-                            // Re-apply trait effects (e.g., BossTrait health boost)
-                            BukkitTrait trait = traitMap.get(traitType);
-                            if (trait != null) {
-                                try {
-                                    trait.onApply(chicken);
-                                } catch (Exception e) {
-                                    getLogger().log(Level.WARNING,
-                                            "Error re-applying trait " + traitType.getKey() + " on scan", e);
-                                }
-                            }
+                            registerLoadedChicken(chicken, traitType);
                         }
                     }
                 }
@@ -518,6 +563,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
 
         // Add to active chickens map
         activeChickens.put(chicken.getUniqueId(), traitType);
+        loadedChickens.put(chicken.getUniqueId(), chicken);
 
         // Reset tick counter for this chicken
         chickenTickCounters.put(chicken.getUniqueId(), 0);
@@ -534,7 +580,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         }
 
         // Optionally announce the trait
-        if (configManager.isAnnounceTraitOnSpawn() && configManager.isEnableTraitMessages()) {
+        if (configManager.isAnnounceTraitOnSpawn() && configManager.isTraitMessagesEnabled()) {
             String message = org.bukkit.ChatColor.GOLD + "[ChaosChickens] " +
                     org.bukkit.ChatColor.YELLOW + "A " + traitType.getDisplayName() +
                     org.bukkit.ChatColor.YELLOW + " has appeared!";
@@ -561,8 +607,48 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
      */
     public void removeActiveChicken(UUID uuid) {
         activeChickens.remove(uuid);
+        loadedChickens.remove(uuid);
         chickenTickCounters.remove(uuid);
     }
+
+    public void registerLoadedChicken(Chicken chicken, TraitType traitType) {
+        if (chicken == null || traitType == null || traitType == TraitType.EMPTY) return;
+        activeChickens.put(chicken.getUniqueId(), traitType);
+        loadedChickens.put(chicken.getUniqueId(), chicken);
+        chickenTickCounters.putIfAbsent(chicken.getUniqueId(), 0);
+
+        // Re-apply trait effects (e.g., Boss health boost) region-safely
+        BukkitTrait trait = traitMap.get(traitType);
+        if (trait != null) {
+            if (isFolia) {
+                try {
+                    Object scheduler = chicken.getClass().getMethod("getScheduler").invoke(chicken);
+                    Class<?> consumerClass = Class.forName("java.util.function.Consumer");
+                    java.lang.reflect.Method runMethod = scheduler.getClass().getMethod("run",
+                            org.bukkit.plugin.Plugin.class, consumerClass, Runnable.class);
+                    runMethod.invoke(scheduler, this, (java.util.function.Consumer<Object>) task -> {
+                        try {
+                            trait.onApply(chicken);
+                        } catch (Exception e) {
+                            getLogger().log(Level.WARNING, "Error applying trait on load", e);
+                        }
+                    }, null);
+                } catch (Exception e) {
+                    trait.onApply(chicken);
+                }
+            } else {
+                trait.onApply(chicken);
+            }
+        }
+    }
+
+    public void unregisterLoadedChicken(UUID uuid) {
+        loadedChickens.remove(uuid);
+        activeChickens.remove(uuid);
+        chickenTickCounters.remove(uuid);
+    }
+
+
 
     /**
      * Get the number of currently tracked active chaos chickens.
@@ -582,15 +668,12 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
      */
     public int getActiveChickenCountForPlayer(Player player) {
         int count = 0;
-        for (org.bukkit.World world : Bukkit.getWorlds()) {
-            if (!world.equals(player.getWorld())) continue;
-            for (Entity entity : world.getEntities()) {
-                if (entity instanceof Chicken && activeChickens.containsKey(entity.getUniqueId())) {
-                    Chicken chicken = (Chicken) entity;
-                    if (chicken.getLocation().distanceSquared(player.getLocation()) < 128 * 128) {
-                        count++;
-                    }
-                }
+        org.bukkit.Location playerLoc = player.getLocation();
+        for (UUID uuid : activeChickens.keySet()) {
+            Chicken chicken = loadedChickens.get(uuid);
+            if (chicken != null && chicken.getWorld().equals(player.getWorld())
+                    && chicken.getLocation().distanceSquared(playerLoc) < 128 * 128) {
+                count++;
             }
         }
         return count;

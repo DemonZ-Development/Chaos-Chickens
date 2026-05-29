@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.forge.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -36,17 +45,21 @@ public class CursedTrait extends ForgeTrait {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.level() instanceof ServerLevel serverLevel)) return;
 
-        // Curse particles
+        // Only spawn particles when players are nearby
         if (chicken.tickCount % 20 == 0) {
-            serverLevel.sendParticles(ParticleTypes.WITCH,
-                    chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                    4, 0.3, 0.3, 0.3, 0.02);
+            boolean playersNearby = !serverLevel.getPlayers(p -> p.isAlive() && p.distanceToSqr(chicken) <= PROXIMITY_RANGE * PROXIMITY_RANGE).isEmpty();
+            if (playersNearby) {
+                serverLevel.sendParticles(ParticleTypes.WITCH,
+                        chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
+                        4, 0.3, 0.3, 0.3, 0.02);
+            }
         }
     }
 
     @Override
     public void onPlayerNear(Chicken chicken, Player player) {
         if (player == null || player.isDeadOrDying()) return;
+        if (chicken == null || chicken.getRandom() == null) return;
 
         var random = chicken.getRandom();
         int effectIndex = random.nextInt(5);

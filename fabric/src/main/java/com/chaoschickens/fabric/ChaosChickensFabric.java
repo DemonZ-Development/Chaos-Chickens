@@ -49,11 +49,22 @@ public class ChaosChickensFabric implements ModInitializer {
     /** Tracks which chickens have already had onApply called (prevents re-execution on chunk reload). */
     private static final Set<UUID> appliedChickens = ConcurrentHashMap.newKeySet();
 
+    /** Tracks which chickens have already been checked/evaluated for a trait. */
+    private static final Set<UUID> checkedChickens = ConcurrentHashMap.newKeySet();
+
+    public static void addCheckedChicken(UUID uuid) {
+        checkedChickens.add(uuid);
+    }
+
+    public static boolean isCheckedChicken(UUID uuid) {
+        return checkedChickens.contains(uuid);
+    }
+
     /** Per-chicken tick counters for correct interval calculation. */
     private static final Map<UUID, Integer> chickenTickCounters = new ConcurrentHashMap<>();
 
     /** Global tick counter for throttling server tick processing. */
-    private static int globalTickCounter = 0;
+    private static volatile int globalTickCounter = 0;
 
     /** Cached trait instances for quick lookup. */
     private static final Map<TraitType, FabricTrait> traitInstances = new ConcurrentHashMap<>();
@@ -65,39 +76,61 @@ public class ChaosChickensFabric implements ModInitializer {
     public void onInitialize() {
         LOGGER.info("Chaos Chickens initializing...");
 
-        // Load configuration
-        ConfigLoader.load();
-
         // Initialize API
         ChaosChickensAPI.initialize();
 
         // Register all traits
         registerTraits();
 
+        // Load configuration
+        ConfigLoader.load();
+
         // Register entity join event — assign traits to newly spawned chickens
+        // NOTE: NBT loading is handled entirely by the ChickenEntityMixin write/read injects.
+        // This handler only assigns traits to fresh (non-loaded) chickens.
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             if (entity instanceof ChickenEntity chicken) {
-                // Check if chicken already has a trait (e.g., from NBT on reload)
-                if (ChickenDataUtil.hasTrait(chicken)) {
-                    TraitType existing = ChickenDataUtil.getTrait(chicken);
-                    if (existing != TraitType.EMPTY) {
-                        activeChickens.put(chicken.getUuid(), existing);
-                        chickenTickCounters.put(chicken.getUuid(), 0);
-                        // Only re-apply trait effects if not already applied this session
-                        if (appliedChickens.add(chicken.getUuid())) {
-                            FabricTrait trait = getTraitInstance(existing);
-                            if (trait != null) {
-                                trait.onApply(chicken);
-                            }
-                        }
-                    }
+                // If already tracked or checked, skip
+                if (activeChickens.containsKey(chicken.getUuid()) || isCheckedChicken(chicken.getUuid())) return;
+
+                // Mark as checked
+                addCheckedChicken(chicken.getUuid());
+
+                if (ConfigLoader.getConfig().isOnlyNaturalSpawns()) {
                     return;
                 }
 
-                // Roll for chaos chance
+                // Check for max chickens per player limit
+                int max = ConfigLoader.getConfig().getMaxChickensPerPlayer();
+                if (max > -1) {
+                    net.minecraft.server.network.ServerPlayerEntity nearestPlayer = null;
+                    double nearestDist = Double.MAX_VALUE;
+                    for (net.minecraft.server.network.ServerPlayerEntity player : world.getPlayers()) {
+                        double dist = player.squaredDistanceTo(chicken.getX(), chicken.getY(), chicken.getZ());
+                        if (dist < 64 * 64 && dist < nearestDist) {
+                            nearestDist = dist;
+                            nearestPlayer = player;
+                        }
+                    }
+                    if (nearestPlayer != null) {
+                        int count = getActiveChickenCountForPlayer(nearestPlayer);
+                        if (count >= max) {
+                            return;
+                        }
+                    }
+                }
+
+                // Check for boss chicken first (independent roll)
+                if (ConfigLoader.getConfig().isBossChickensEnabled()
+                        && RANDOM.nextDouble() < ConfigLoader.getConfig().getBossChance()) {
+                    assignTrait(chicken, TraitType.BOSS);
+                    return;
+                }
+
+                // Roll for chaos chance on fresh spawns
                 double chaosChance = ConfigLoader.getConfig().getChaosChance();
                 if (RANDOM.nextDouble() < chaosChance) {
-                    assignTrait(chicken);
+                    assignTrait(chicken, null);
                 }
             }
         });
@@ -106,16 +139,16 @@ public class ChaosChickensFabric implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(this::onServerTick);
 
         // Check for updates via Modrinth
-        if (ConfigLoader.getConfig().isCheckForUpdates()) {
-            UpdateChecker.setCurrentVersion("1.0.0");
-            UpdateChecker.checkForUpdates().thenAccept(available -> {
-                if (available) {
-                    LOGGER.info(UpdateChecker.getUpdateMessage());
-                }
-            });
+        String version = net.fabricmc.loader.api.FabricLoader.getInstance()
+                .getModContainer(MOD_ID).get()
+                .getMetadata().getVersion().getFriendlyString();
+        if (ConfigLoader.getConfig().isUpdateCheckingEnabled()) {
+            UpdateChecker.setCurrentVersion(version);
+            UpdateChecker.checkForUpdates();
+            UpdateChecker.startScheduledUpdateChecks(5);
         }
 
-        LOGGER.info("Chaos Chickens v1.0.0 initialized! {} traits registered.", traitInstances.size());
+        LOGGER.info("Chaos Chickens v{} initialized! {} traits registered.", version, traitInstances.size());
     }
 
     /**
@@ -143,22 +176,23 @@ public class ChaosChickensFabric implements ModInitializer {
         traitInstances.put(trait.getType(), trait);
     }
 
-    /**
-     * Assign a random chaos trait to a chicken entity.
-     *
-     * @param chicken The chicken to assign a trait to
-     */
     public static void assignTrait(ChickenEntity chicken) {
+        assignTrait(chicken, null);
+    }
+
+    /**
+     * Assign a specific or random chaos trait to a chicken entity.
+     *
+     * @param chicken   The chicken to assign a trait to
+     * @param traitType The trait type to assign, or null to pick randomly
+     */
+    public static void assignTrait(ChickenEntity chicken, TraitType traitType) {
         if (chicken == null || chicken.isRemoved()) return;
 
-        TraitType traitType = ChaosChickensAPI.pickRandomTrait(RANDOM);
-        if (traitType == TraitType.EMPTY) return;
-
-        // Check for boss chicken
-        if (ConfigLoader.getConfig().isEnableBossChickens()
-                && RANDOM.nextDouble() < ConfigLoader.getConfig().getBossChance()) {
-            traitType = TraitType.BOSS;
+        if (traitType == null) {
+            traitType = ChaosChickensAPI.pickRandomTrait(RANDOM);
         }
+        if (traitType == TraitType.EMPTY) return;
 
         // Set trait on the chicken
         ChickenDataUtil.setTrait(chicken, traitType);
@@ -217,7 +251,7 @@ public class ChaosChickensFabric implements ModInitializer {
 
         for (ServerWorld world : server.getWorlds()) {
             // Get all chicken entities in the world
-            List<ChickenEntity> chickens = world.getEntitiesByType(
+            List<ChickenEntity> chickens = (List<ChickenEntity>) (List<?>) world.getEntitiesByType(
                     EntityType.CHICKEN,
                     chicken -> activeChickens.containsKey(chicken.getUuid())
             );
@@ -289,5 +323,19 @@ public class ChaosChickensFabric implements ModInitializer {
         activeChickens.put(uuid, type);
         chickenTickCounters.put(uuid, 0);
         appliedChickens.add(uuid);
+        addCheckedChicken(uuid);
+    }
+
+    public static int getActiveChickenCountForPlayer(net.minecraft.server.network.ServerPlayerEntity player) {
+        int count = 0;
+        net.minecraft.util.math.Vec3d playerPos = player.getPos();
+        for (UUID uuid : activeChickens.keySet()) {
+            net.minecraft.entity.Entity entity = player.getServerWorld().getEntity(uuid);
+            if (entity instanceof ChickenEntity && entity.getWorld().equals(player.getWorld())
+                    && entity.getPos().squaredDistanceTo(playerPos) < 128 * 128) {
+                count++;
+            }
+        }
+        return count;
     }
 }

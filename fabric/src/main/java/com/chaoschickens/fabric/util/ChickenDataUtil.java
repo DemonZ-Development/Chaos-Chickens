@@ -1,81 +1,70 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.util;
 
 import com.chaoschickens.common.trait.TraitType;
 import net.minecraft.entity.passive.ChickenEntity;
-import net.minecraft.nbt.NbtCompound;
 
-/**
- * Utility class for reading and writing trait data on chicken entities.
- * Bug #1 fix: setTrait() now directly stores the trait in a transient field
- * that the mixin picks up during the next NBT write cycle.
- * The mixin's writeCustomDataFromNbt inject will persist the trait.
- */
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 public final class ChickenDataUtil {
+    public static final String NBT_KEY = "chaoschicken_trait";
 
-    public static final String NBT_KEY = "ChaosChickensTrait";
-
-    /** Transient storage for traits that haven't been persisted yet */
-    private static final java.util.Map<java.util.UUID, TraitType> pendingTraits =
-            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<UUID, String> pendingTraits = new ConcurrentHashMap<>();
 
     private ChickenDataUtil() {}
 
-    /**
-     * Set the trait type on a chicken entity.
-     * Bug #1 fix: Store in pending map. The ChickenEntityMixin's
-     * writeCustomDataFromNbt will persist it on the next save cycle.
-     */
     public static void setTrait(ChickenEntity chicken, TraitType type) {
         if (chicken == null || type == null) return;
-        pendingTraits.put(chicken.getUuid(), type);
-        // Force NBT write to trigger mixin persistence
-        NbtCompound forcedWrite = new NbtCompound();
-        chicken.writeCustomDataToNbt(forcedWrite);
-    }
-
-    public static TraitType getTrait(ChickenEntity chicken) {
-        if (chicken == null) return TraitType.EMPTY;
-
-        // Check pending traits first
-        TraitType pending = pendingTraits.get(chicken.getUuid());
-        if (pending != null) return pending;
-
-        NbtCompound nbt = new NbtCompound();
-        chicken.writeCustomDataToNbt(nbt);
-        if (!nbt.contains(NBT_KEY, NbtCompound.STRING_TYPE)) return TraitType.EMPTY;
-        String key = nbt.getString(NBT_KEY);
-        if (key == null || key.isEmpty()) return TraitType.EMPTY;
-        return TraitType.fromKey(key);
+        pendingTraits.put(chicken.getUuid(), type.getKey());
     }
 
     public static boolean hasTrait(ChickenEntity chicken) {
         if (chicken == null) return false;
-        if (pendingTraits.containsKey(chicken.getUuid())) return true;
-        NbtCompound nbt = new NbtCompound();
-        chicken.writeCustomDataToNbt(nbt);
-        if (!nbt.contains(NBT_KEY, NbtCompound.STRING_TYPE)) return false;
-        String key = nbt.getString(NBT_KEY);
-        return key != null && !key.isEmpty();
+        return pendingTraits.containsKey(chicken.getUuid());
+    }
+
+    public static TraitType getTrait(ChickenEntity chicken) {
+        if (chicken == null) return TraitType.EMPTY;
+        String key = pendingTraits.get(chicken.getUuid());
+        return key != null ? TraitType.fromKey(key) : TraitType.EMPTY;
     }
 
     public static void removeTrait(ChickenEntity chicken) {
-        if (chicken == null) return;
-        pendingTraits.remove(chicken.getUuid());
-        // Remove from active tracking so the mixin won't re-write the trait to NBT
-        ChaosChickensFabric.removeActiveChicken(chicken.getUuid());
+        if (chicken != null) pendingTraits.remove(chicken.getUuid());
     }
 
-    /**
-     * Get and remove a pending trait (used by mixin to flush to NBT).
-     */
-    public static TraitType getAndClearPending(java.util.UUID uuid) {
-        return pendingTraits.remove(uuid);
-    }
-
-    /**
-     * Check if there's a pending trait for a chicken UUID.
-     */
-    public static boolean hasPendingTrait(java.util.UUID uuid) {
+    public static boolean hasPendingTrait(UUID uuid) {
         return pendingTraits.containsKey(uuid);
+    }
+
+    public static TraitType getAndClearPending(UUID uuid) {
+        String key = pendingTraits.remove(uuid);
+        return key != null ? TraitType.fromKey(key) : TraitType.EMPTY;
+    }
+
+    private static final Map<UUID, java.util.List<TraitType>> bossSubTraits = new ConcurrentHashMap<>();
+
+    public static void setBossSubTraits(ChickenEntity chicken, java.util.List<TraitType> subTraits) {
+        if (chicken == null || subTraits == null) return;
+        bossSubTraits.put(chicken.getUuid(), subTraits);
+    }
+
+    public static java.util.List<TraitType> getBossSubTraits(ChickenEntity chicken) {
+        if (chicken == null) return new java.util.ArrayList<>();
+        return bossSubTraits.getOrDefault(chicken.getUuid(), new java.util.ArrayList<>());
+    }
+
+    public static void removeBossSubTraits(ChickenEntity chicken) {
+        if (chicken != null) bossSubTraits.remove(chicken.getUuid());
     }
 }

@@ -17,6 +17,7 @@ import com.chaoschickens.common.util.UpdateChecker;
 import com.chaoschickens.forge.trait.*;
 import com.chaoschickens.forge.util.ChickenDataUtil;
 import com.chaoschickens.forge.util.ConfigLoader;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.MinecraftForge;
@@ -59,7 +60,7 @@ public class ChaosChickensForge {
     private static final Map<UUID, Integer> chickenTickCounters = new ConcurrentHashMap<>();
 
     /** Global tick counter for throttling server tick processing. */
-    private static int globalTickCounter = 0;
+    private static volatile int globalTickCounter = 0;
 
     /** Cached trait instances for quick lookup. */
     private static final Map<TraitType, ForgeTrait> traitInstances = new ConcurrentHashMap<>();
@@ -70,33 +71,34 @@ public class ChaosChickensForge {
     public ChaosChickensForge() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
 
-        // Load configuration
-        ConfigLoader.load();
-
         // Initialize API
         ChaosChickensAPI.initialize();
 
         // Register all traits
         registerTraits();
 
+        // Load configuration
+        ConfigLoader.load();
+
         // Register Forge event listeners
         MinecraftForge.EVENT_BUS.addListener(this::onEntityJoinLevel);
+        MinecraftForge.EVENT_BUS.addListener(this::onEntityLeaveLevel);
         MinecraftForge.EVENT_BUS.addListener(this::onLivingDeath);
         MinecraftForge.EVENT_BUS.addListener(this::onLivingDrops);
         MinecraftForge.EVENT_BUS.addListener(this::onPlayerInteract);
         MinecraftForge.EVENT_BUS.addListener(this::onServerTick);
 
         // Check for updates via Modrinth
-        if (ConfigLoader.getConfig().isCheckForUpdates()) {
-            UpdateChecker.setCurrentVersion("1.0.0");
-            UpdateChecker.checkForUpdates().thenAccept(available -> {
-                if (available) {
-                    LOGGER.info(UpdateChecker.getUpdateMessage());
-                }
-            });
+        String currentVersion = net.minecraftforge.fml.ModList.get()
+                .getModContainerById(MOD_ID).get()
+                .getModInfo().getVersion().toString();
+        if (ConfigLoader.getConfig().isUpdateCheckingEnabled()) {
+            UpdateChecker.setCurrentVersion(currentVersion);
+            UpdateChecker.checkForUpdates();
+            UpdateChecker.startScheduledUpdateChecks(5);
         }
 
-        LOGGER.info("Chaos Chickens v1.0.0 (Forge) initialized! {} traits registered.", traitInstances.size());
+        LOGGER.info("Chaos Chickens v{} (Forge) initialized! {} traits registered.", currentVersion, traitInstances.size());
     }
 
     private void registerTraits() {
@@ -140,31 +142,85 @@ public class ChaosChickensForge {
             return;
         }
 
+        // Avoid re-evaluating chunk-loaded chickens using persistent data compound
+        if (chicken.getPersistentData().getBoolean("ChaosChickensChecked")) {
+            return;
+        }
+
+        // If loaded from disk and has no trait, it's an existing normal chicken. Skip and mark as checked.
+        if (event.loadedFromDisk()) {
+            chicken.getPersistentData().putBoolean("ChaosChickensChecked", true);
+            return;
+        }
+
+        // Mark as checked immediately
+        chicken.getPersistentData().putBoolean("ChaosChickensChecked", true);
+
+        if (ConfigLoader.getConfig().isOnlyNaturalSpawns()) {
+            return;
+        }
+
+        // Enforce maxChickensPerPlayer limit
+        int max = ConfigLoader.getConfig().getMaxChickensPerPlayer();
+        if (max > -1) {
+            net.minecraft.world.entity.player.Player nearestPlayer = null;
+            double nearestDist = Double.MAX_VALUE;
+            // Get players from the server level
+            for (net.minecraft.world.entity.player.Player player : event.getLevel().players()) {
+                double dist = player.distanceToSqr(chicken.getX(), chicken.getY(), chicken.getZ());
+                if (dist < 64 * 64 && dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestPlayer = player;
+                }
+            }
+            if (nearestPlayer != null) {
+                int count = getActiveChickenCountForPlayer(nearestPlayer);
+                if (count >= max) {
+                    return;
+                }
+            }
+        }
+
+        // Check for boss chicken first (independent roll)
+        if (ConfigLoader.getConfig().isBossChickensEnabled()
+                && RANDOM.nextDouble() < ConfigLoader.getConfig().getBossChance()) {
+            assignTrait(chicken, TraitType.BOSS);
+            return;
+        }
+
         double chaosChance = ConfigLoader.getConfig().getChaosChance();
         if (RANDOM.nextDouble() < chaosChance) {
-            assignTrait(chicken);
+            assignTrait(chicken, null);
         }
+    }
+
+    private void onEntityLeaveLevel(net.minecraftforge.event.entity.EntityLeaveLevelEvent event) {
+        if (event.getLevel().isClientSide()) return;
+        if (!(event.getEntity() instanceof Chicken chicken)) return;
+        
+        removeActiveChicken(chicken.getUUID());
     }
 
     private void onLivingDeath(LivingDeathEvent event) {
         if (event.getEntity().level().isClientSide()) return;
         if (!(event.getEntity() instanceof Chicken chicken)) return;
 
-        TraitType traitType = activeChickens.remove(chicken.getUUID());
-        if (traitType == null) return;
+        TraitType traitType = ChickenDataUtil.getTrait(chicken);
+        if (traitType == TraitType.EMPTY) return;
 
         ForgeTrait trait = traitInstances.get(traitType);
         if (trait != null) {
             trait.onDeath(chicken, event.getSource());
         }
+        removeActiveChicken(chicken.getUUID());
     }
 
     private void onLivingDrops(LivingDropsEvent event) {
         if (event.getEntity().level().isClientSide()) return;
         if (!(event.getEntity() instanceof Chicken chicken)) return;
 
-        TraitType traitType = activeChickens.get(chicken.getUUID());
-        if (traitType == null) return;
+        TraitType traitType = ChickenDataUtil.getTrait(chicken);
+        if (traitType == TraitType.EMPTY) return;
 
         ForgeTrait trait = traitInstances.get(traitType);
         if (trait != null && trait.modifiesDrops()) {
@@ -200,14 +256,21 @@ public class ChaosChickensForge {
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
 
-        for (var level : server.getAllLevels()) {
-            // Iterate all loaded chicken entities and filter for active chaos chickens
-            List<Chicken> chickens = new ArrayList<>();
-            for (var entity : level.getAllEntities()) {
-                if (entity instanceof Chicken chicken && activeChickens.containsKey(chicken.getUUID())) {
-                    chickens.add(chicken);
+        // Group active chickens by level to avoid iterating all levels per UUID
+        Map<net.minecraft.world.level.Level, List<Chicken>> chickensByLevel = new HashMap<>();
+        for (UUID uuid : activeChickens.keySet()) {
+            for (var level : server.getAllLevels()) {
+                Entity entity = level.getEntity(uuid);
+                if (entity instanceof Chicken chicken) {
+                    chickensByLevel.computeIfAbsent(level, k -> new ArrayList<>()).add(chicken);
+                    break;
                 }
             }
+        }
+
+        for (var entry : chickensByLevel.entrySet()) {
+            var level = entry.getKey();
+            var chickens = entry.getValue();
 
             for (Chicken chicken : chickens) {
                 if (chicken.isRemoved() || chicken.isDeadOrDying()) {
@@ -230,7 +293,7 @@ public class ChaosChickensForge {
                 if (trait.isPeriodic()) {
                     int tickInterval = trait.getTickInterval();
                     // Task fires every 10 game ticks, so game ticks elapsed = ticks * 10
-                    if ((ticks * 10) % Math.max(1, tickInterval) == 0) {
+                    if ((ticks * 10) % Math.max(10, tickInterval) == 0) {
                         try {
                             trait.onTick(chicken);
                         } catch (Exception e) {
@@ -262,15 +325,16 @@ public class ChaosChickensForge {
     // ========== Public API ==========
 
     public static void assignTrait(Chicken chicken) {
+        assignTrait(chicken, null);
+    }
+
+    public static void assignTrait(Chicken chicken, TraitType traitType) {
         if (chicken == null || chicken.isRemoved()) return;
 
-        TraitType traitType = ChaosChickensAPI.pickRandomTrait(RANDOM);
-        if (traitType == TraitType.EMPTY) return;
-
-        if (ConfigLoader.getConfig().isEnableBossChickens()
-                && RANDOM.nextDouble() < ConfigLoader.getConfig().getBossChance()) {
-            traitType = TraitType.BOSS;
+        if (traitType == null) {
+            traitType = ChaosChickensAPI.pickRandomTrait(RANDOM);
         }
+        if (traitType == TraitType.EMPTY) return;
 
         ChickenDataUtil.setTrait(chicken, traitType);
         activeChickens.put(chicken.getUUID(), traitType);
@@ -302,5 +366,24 @@ public class ChaosChickensForge {
         activeChickens.put(uuid, type);
         chickenTickCounters.put(uuid, 0);
         appliedChickens.add(uuid);
+    }
+
+    public static int getActiveChickenCountForPlayer(net.minecraft.world.entity.player.Player player) {
+        int count = 0;
+        net.minecraft.world.phys.Vec3 playerPos = player.position();
+        for (UUID uuid : activeChickens.keySet()) {
+            net.minecraft.world.entity.Entity entity = null;
+            if (player.getServer() != null) {
+                for (net.minecraft.server.level.ServerLevel level : player.getServer().getAllLevels()) {
+                    entity = level.getEntity(uuid);
+                    if (entity != null) break;
+                }
+            }
+            if (entity instanceof Chicken && entity.level().equals(player.level())
+                    && entity.position().distanceToSqr(playerPos) < 128 * 128) {
+                count++;
+            }
+        }
+        return count;
     }
 }

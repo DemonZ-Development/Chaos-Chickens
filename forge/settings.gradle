@@ -1,0 +1,14 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Minecraft Forge'
+            url = 'https://maven.minecraftforge.net/'
+        }
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'chaoschickens-forge'
+
+include ':common'
+project(':common').projectDir = new File(settingsDir, '../common')

@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -54,7 +63,9 @@ public class MagnetTrait extends FabricTrait {
         for (ItemEntity item : nearbyItems) {
             // Pull item toward chicken
             Vec3d itemPos = item.getPos();
-            Vec3d direction = chickenPos.subtract(itemPos).normalize().multiply(PULL_STRENGTH);
+            Vec3d velocity = chickenPos.subtract(itemPos);
+            if (velocity.lengthSquared() < 0.01) continue;
+            Vec3d direction = velocity.normalize().multiply(PULL_STRENGTH);
             item.setVelocity(item.getVelocity().add(direction));
             item.velocityModified = true;
 

@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.4-SNAPSHOT'
+    id 'fabric-loom' version '1.7-SNAPSHOT'
     id 'java-library'
     id 'maven-publish'
 }
@@ -45,29 +45,25 @@ processResources {
     }
 }
 
+def targetJava = project.hasProperty('targetJava') ? project.property('targetJava').toString() : '17'
+
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 17
+    it.options.release = Integer.parseInt(targetJava)
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.toVersion(targetJava)
+    targetCompatibility = JavaVersion.toVersion(targetJava)
     withSourcesJar()
+}
+
+base {
+    archivesName = "${project.archives_base_name}-java${targetJava}"
 }
 
 jar {
     from("LICENSE") {
         rename { "${it}_${project.archivesBaseName}" }
-    }
-    from {
-        // Include common module classes in the jar
-        project(':common').sourceSets.main.output
-    }
-}
-
-sourcesJar {
-    from {
-        project(':common').sourceSets.main.allSource
     }
 }
 

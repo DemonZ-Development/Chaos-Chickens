@@ -5,13 +5,21 @@ plugins {
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
 
+evaluationDependsOn(':common')
+
 version = project.mod_version
 group = project.maven_group
+def targetJava = project.hasProperty('targetJava') ? project.property('targetJava').toString() : '21'
+
 base {
-    archivesName = project.archives_base_name
+    archivesName = "${project.archives_base_name}-java${targetJava}"
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+java.toolchain.languageVersion = JavaLanguageVersion.of(Integer.parseInt(targetJava))
+
+minecraft {
+    mappings channel: 'official', version: '1.21.1'
+}
 
 repositories {
     mavenCentral()
@@ -26,9 +34,16 @@ dependencies {
     implementation project(path: ':common', configuration: 'default')
 }
 
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("META-INF/mods.toml") {
+        expand "version": project.version
+    }
+}
+
 jar {
     from {
-        // Include common module classes in the jar
         project(':common').sourceSets.main.output
     }
     manifest {
@@ -44,7 +59,13 @@ jar {
     }
 }
 
-jar.finalizedBy('reobfJar')
+reobf {
+    jar {}
+}
+
+afterEvaluate {
+    jar.finalizedBy('reobfJar')
+}
 
 publishing {
     publications {

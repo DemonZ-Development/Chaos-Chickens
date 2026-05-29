@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.bukkit.ChaosChickensBukkit;
@@ -35,18 +44,19 @@ public class TeleportTrait extends BukkitTrait {
     public void onTick(Chicken chicken) {
         if (chicken == null || chicken.isDead()) return;
 
-        // Get shared Random instance
-        java.util.Random random = getPluginRandom(chicken);
+        java.util.Random random = plugin.getRandom();
 
-        // Spawn ender particles at current location before teleporting (use clone to avoid mutation)
-        Location particleLoc = chicken.getLocation().clone().add(0, 1, 0);
-        chicken.getWorld().spawnParticle(
-                Particle.PORTAL,
-                particleLoc,
-                30,
-                0.5, 0.5, 0.5,
-                0.5
-        );
+        // Spawn ender particles at current location before teleporting (use clone to avoid mutation) (if enabled)
+        if (plugin.getConfigManager().isTraitParticlesEnabled()) {
+            Location particleLoc = chicken.getLocation().clone().add(0, 1, 0);
+            chicken.getWorld().spawnParticle(
+                    Particle.PORTAL,
+                    particleLoc,
+                    30,
+                    0.5, 0.5, 0.5,
+                    0.5
+            );
+        }
 
         // Calculate random offset within range
         double offsetX = (random.nextDouble() - 0.5) * 2 * TELEPORT_RANGE;
@@ -65,15 +75,17 @@ public class TeleportTrait extends BukkitTrait {
         if (isSafeTeleportDestination(newLoc)) {
             chicken.teleport(newLoc);
 
-            // Spawn ender particles at new location
-            Location newParticleLoc = chicken.getLocation().clone().add(0, 1, 0);
-            chicken.getWorld().spawnParticle(
-                    Particle.PORTAL,
-                    newParticleLoc,
-                    30,
-                    0.5, 0.5, 0.5,
-                    0.5
-            );
+            // Spawn ender particles at new location (if enabled)
+            if (plugin.getConfigManager().isTraitParticlesEnabled()) {
+                Location newParticleLoc = chicken.getLocation().clone().add(0, 1, 0);
+                chicken.getWorld().spawnParticle(
+                        Particle.PORTAL,
+                        newParticleLoc,
+                        30,
+                        0.5, 0.5, 0.5,
+                        0.5
+                );
+            }
         }
     }
 
@@ -127,19 +139,4 @@ public class TeleportTrait extends BukkitTrait {
         return true;
     }
 
-    /**
-     * Get a shared Random instance from the plugin.
-     */
-    private java.util.Random getPluginRandom(Chicken chicken) {
-        try {
-            org.bukkit.plugin.Plugin plugin =
-                    org.bukkit.Bukkit.getPluginManager().getPlugin("ChaosChickens");
-            if (plugin instanceof ChaosChickensBukkit) {
-                return ((ChaosChickensBukkit) plugin).getRandom();
-            }
-        } catch (Exception ignored) {}
-        return FALLBACK_RANDOM;
-    }
-
-    private static final java.util.Random FALLBACK_RANDOM = new java.util.Random();
 }

@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.forge.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -35,7 +44,7 @@ public class FireTrait extends ForgeTrait {
         if (!(chicken.level() instanceof ServerLevel serverLevel)) return;
 
         // Spawn flame particles
-        if (chicken.tickCount % 10 == 0) {
+        if (chicken.tickCount % 10 == 0 && com.chaoschickens.forge.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverLevel.sendParticles(ParticleTypes.FLAME,
                     chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
                     5, 0.3, 0.3, 0.3, 0.02);
@@ -45,7 +54,7 @@ public class FireTrait extends ForgeTrait {
     @Override
     public void onPlayerNear(Chicken chicken, Player player) {
         if (player == null || player.isDeadOrDying()) return;
-        player.setSecondsOnFire(3);
+        player.setRemainingFireTicks(FIRE_DURATION);
     }
 
     @Override

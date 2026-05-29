@@ -115,6 +115,13 @@ remappedSrc/
 # Forge
 # ============================
 forge-run/
-logs/
 # Forge use old gradle
 !forge/gradle/wrapper/gradle-wrapper.jar
+
+# ============================
+# Deploy
+# ============================
+.deploy-receipt.json
+
+# Heap dumps
+*.hprof

@@ -1,13 +1,22 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.forge.trait;
 
 import com.chaoschickens.common.trait.TraitType;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-
-import java.util.UUID;
 
 /**
  * Speed chicken trait.
@@ -15,9 +24,7 @@ import java.util.UUID;
  */
 public class SpeedTrait extends ForgeTrait {
 
-    private static final UUID SPEED_MODIFIER_UUID = UUID.fromString("d3b39e8c-7c2a-4e1f-b8d5-9a6c3e7f1a02");
-    private static final String SPEED_MODIFIER_NAME = "ChaosChickensSpeedBoost";
-
+    private static final ResourceLocation SPEED_MODIFIER_ID = ResourceLocation.fromNamespaceAndPath("chaoschickens", "speed_boost");
     public SpeedTrait() {
         super(TraitType.SPEED, "A very fast chicken! Zoom zoom!", 1.2,
                 false, false, 20);
@@ -33,14 +40,26 @@ public class SpeedTrait extends ForgeTrait {
         // Apply speed attribute modifier
         var speedAttribute = chicken.getAttribute(Attributes.MOVEMENT_SPEED);
         if (speedAttribute != null) {
-            speedAttribute.removeModifier(SPEED_MODIFIER_UUID);
+            speedAttribute.removeModifier(SPEED_MODIFIER_ID);
             AttributeModifier speedModifier = new AttributeModifier(
-                    SPEED_MODIFIER_UUID,
-                    SPEED_MODIFIER_NAME,
-                    0.35,
-                    AttributeModifier.Operation.ADD_VALUE
+                    SPEED_MODIFIER_ID,
+                    2.0,
+                    AttributeModifier.Operation.ADD_MULTIPLIED_BASE
             );
             speedAttribute.addPermanentModifier(speedModifier);
+        }
+    }
+
+    @Override
+    public void onDeath(Chicken chicken, DamageSource source) {
+        removeSpeedModifier(chicken);
+    }
+
+    public static void removeSpeedModifier(Chicken chicken) {
+        if (chicken == null) return;
+        var speedAttribute = chicken.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speedAttribute != null) {
+            speedAttribute.removeModifier(SPEED_MODIFIER_ID);
         }
     }
 }

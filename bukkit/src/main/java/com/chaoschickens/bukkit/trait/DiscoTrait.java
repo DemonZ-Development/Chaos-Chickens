@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.bukkit.ChaosChickensBukkit;
@@ -34,9 +43,7 @@ public class DiscoTrait extends BukkitTrait {
     public void onTick(Chicken chicken) {
         if (chicken == null || chicken.isDead()) return;
 
-        // Get shared Random from plugin
-        // Fallback to local Random if plugin not available
-        java.util.Random rand = getPluginRandom(chicken);
+        java.util.Random rand = plugin.getRandom();
 
         // Play random note block sound
         float pitch = 0.5f + rand.nextFloat() * 1.5f;
@@ -61,19 +68,4 @@ public class DiscoTrait extends BukkitTrait {
         }
     }
 
-    /**
-     * Get a shared Random instance from the plugin, or fallback to a local one.
-     */
-    private java.util.Random getPluginRandom(Chicken chicken) {
-        try {
-            org.bukkit.plugin.Plugin plugin =
-                    org.bukkit.Bukkit.getPluginManager().getPlugin("ChaosChickens");
-            if (plugin instanceof ChaosChickensBukkit) {
-                return ((ChaosChickensBukkit) plugin).getRandom();
-            }
-        } catch (Exception ignored) {}
-        return FALLBACK_RANDOM;
-    }
-
-    private static final java.util.Random FALLBACK_RANDOM = new java.util.Random();
 }

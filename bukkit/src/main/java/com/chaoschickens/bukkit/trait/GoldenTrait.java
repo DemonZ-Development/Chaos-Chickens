@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -7,7 +16,7 @@ import org.bukkit.entity.Chicken;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Golden chicken trait.
@@ -21,8 +30,6 @@ public class GoldenTrait extends BukkitTrait {
     private static final double IRON_INGOT_CHANCE = 0.20;
     private static final double EMERALD_CHANCE = 0.10;
     // Diamond = remaining = 0.05
-
-    private final Random random = new Random();
 
     public GoldenTrait() {
         super(TraitType.GOLDEN, "Drops precious ores instead of eggs!", 0.5,
@@ -56,7 +63,7 @@ public class GoldenTrait extends BukkitTrait {
     }
 
     private Material pickRandomOre() {
-        double roll = random.nextDouble();
+        double roll = ThreadLocalRandom.current().nextDouble();
         if (roll < GOLD_NUGGET_CHANCE) {
             return Material.GOLD_NUGGET;
         } else if (roll < GOLD_NUGGET_CHANCE + GOLD_INGOT_CHANCE) {

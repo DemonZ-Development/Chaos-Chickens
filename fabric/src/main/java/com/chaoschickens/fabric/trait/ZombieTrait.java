@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -77,7 +86,7 @@ public class ZombieTrait extends FabricTrait {
         // Deal damage if very close
         if (closest.squaredDistanceTo(chicken) <= DAMAGE_RANGE * DAMAGE_RANGE) {
             closest.damage(chicken.getDamageSources().mobAttack(chicken), CONTACT_DAMAGE);
-            closest.playSound(SoundEvents.ENTITY_ZOMBIE_ATTACK, 0.5f, 1.5f);
+            closest.playSound(SoundEvents.ENTITY_ZOMBIE_AMBIENT, 0.5f, 1.5f);
         }
 
         // Spawn angry particles

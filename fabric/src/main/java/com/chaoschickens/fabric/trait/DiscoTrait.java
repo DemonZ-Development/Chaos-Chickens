@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -48,16 +57,13 @@ public class DiscoTrait extends FabricTrait {
                 0.5f, pitch
         );
 
-        // Spawn colorful particles
-        DyeColor randomColor = DyeColor.values()[chicken.getRandom().nextInt(DyeColor.values().length)];
-        double r = (randomColor.getColorComponent()[0]);
-        double g = (randomColor.getColorComponent()[1]);
-        double b = (randomColor.getColorComponent()[2]);
-
+        // Spawn colorful note particles
         serverWorld.spawnParticles(
-                ParticleTypes.ENTITY_EFFECT,
+                ParticleTypes.NOTE,
                 chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                8, 0.4, 0.4, 0.4, 1.0
+                8,
+                0.5, 0.5, 0.5,
+                1.0
         );
 
         // Dye nearby sheep every 2 seconds (30 ticks at interval 15 = every 2 ticks, so gate by age)

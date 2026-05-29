@@ -1,3 +1,12 @@
+/*
+ * Chaos Chickens - Multi-platform Minecraft plugin/mod
+ * Copyright (C) 2024-2026 DemonZ Development community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 package com.chaoschickens.bukkit.trait;
 
 import com.chaoschickens.common.trait.TraitType;
@@ -12,7 +21,7 @@ public class ExplosiveTrait extends BukkitTrait {
 
     public ExplosiveTrait() {
         super(TraitType.EXPLOSIVE, "Explodes on death! Careful around these chickens.", 1.0,
-                false, false, 20);
+                true, false, 20);
     }
 
     @Override

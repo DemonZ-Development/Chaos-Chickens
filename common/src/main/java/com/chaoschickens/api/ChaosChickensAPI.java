@@ -19,7 +19,15 @@ package com.chaoschickens.api;
 import com.chaoschickens.common.trait.ChaosTrait;
 import com.chaoschickens.common.trait.TraitType;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 
 /**
  * Public API for the Chaos Chickens plugin/mod.
@@ -34,8 +42,8 @@ public final class ChaosChickensAPI {
     private static final Map<TraitType, ChaosTrait> traitRegistry = new LinkedHashMap<>();
     private static final Map<TraitType, Double> traitWeights = new HashMap<>();
     private static final List<TraitType> enabledTraits = new ArrayList<>();
-    private static boolean bstatsEnabled = true;
-    private static boolean initialized = false;
+    private static volatile boolean bstatsEnabled = true;
+    private static volatile boolean initialized = false;
 
     private ChaosChickensAPI() {
         // Utility class
@@ -88,7 +96,7 @@ public final class ChaosChickensAPI {
      * @param type The trait type
      * @return Optional containing the trait, or empty if not registered
      */
-    public static Optional<ChaosTrait> getTrait(TraitType type) {
+    public static synchronized Optional<ChaosTrait> getTrait(TraitType type) {
         return Optional.ofNullable(traitRegistry.get(type));
     }
 
@@ -97,8 +105,8 @@ public final class ChaosChickensAPI {
      *
      * @return Unmodifiable collection of all registered traits
      */
-    public static Collection<ChaosTrait> getAllTraits() {
-        return Collections.unmodifiableCollection(traitRegistry.values());
+    public static synchronized Collection<ChaosTrait> getAllTraits() {
+        return List.copyOf(traitRegistry.values());
     }
 
     /**
@@ -106,8 +114,8 @@ public final class ChaosChickensAPI {
      *
      * @return Unmodifiable list of enabled trait types
      */
-    public static List<TraitType> getEnabledTraits() {
-        return Collections.unmodifiableList(enabledTraits);
+    public static synchronized List<TraitType> getEnabledTraits() {
+        return List.copyOf(enabledTraits);
     }
 
     /**
@@ -130,7 +138,7 @@ public final class ChaosChickensAPI {
      * @param type The trait type
      * @return true if enabled
      */
-    public static boolean isTraitEnabled(TraitType type) {
+    public static synchronized boolean isTraitEnabled(TraitType type) {
         return enabledTraits.contains(type);
     }
 
@@ -140,7 +148,7 @@ public final class ChaosChickensAPI {
      * @param type The trait type
      * @return The weight, or 0.0 if not registered
      */
-    public static double getTraitWeight(TraitType type) {
+    public static synchronized double getTraitWeight(TraitType type) {
         return traitWeights.getOrDefault(type, 0.0);
     }
 
@@ -150,7 +158,7 @@ public final class ChaosChickensAPI {
      * @param type The trait type
      * @param weight The new weight
      */
-    public static void setTraitWeight(TraitType type, double weight) {
+    public static synchronized void setTraitWeight(TraitType type, double weight) {
         if (traitRegistry.containsKey(type)) {
             traitWeights.put(type, weight);
         }
@@ -162,24 +170,33 @@ public final class ChaosChickensAPI {
      *
      * @return A random enabled TraitType, or EMPTY if none are enabled
      */
-    public static TraitType pickRandomTrait(Random random) {
-        if (enabledTraits.isEmpty()) return TraitType.EMPTY;
+    public static synchronized TraitType pickRandomTrait(Random random) {
+        if (random == null) throw new IllegalArgumentException("Random cannot be null");
+        
+        List<TraitType> pool = new ArrayList<>();
+        for (TraitType type : enabledTraits) {
+            if (type != TraitType.BOSS && type != TraitType.EMPTY) {
+                pool.add(type);
+            }
+        }
+        if (pool.isEmpty()) return TraitType.EMPTY;
 
         double totalWeight = 0;
-        for (TraitType type : enabledTraits) {
+        for (TraitType type : pool) {
             totalWeight += traitWeights.getOrDefault(type, 1.0);
         }
+        if (totalWeight <= 0.0) return TraitType.EMPTY;
 
         double roll = random.nextDouble() * totalWeight;
         double current = 0;
-        for (TraitType type : enabledTraits) {
+        for (TraitType type : pool) {
             current += traitWeights.getOrDefault(type, 1.0);
             if (roll < current) {
                 return type;
             }
         }
 
-        return enabledTraits.get(enabledTraits.size() - 1);
+        return pool.get(pool.size() - 1);
     }
 
     /**
@@ -187,7 +204,7 @@ public final class ChaosChickensAPI {
      *
      * @return true if bStats is enabled
      */
-    public static boolean isBstatsEnabled() {
+    public static synchronized boolean isBstatsEnabled() {
         return bstatsEnabled;
     }
 
@@ -196,7 +213,7 @@ public final class ChaosChickensAPI {
      *
      * @param enabled true to enable bStats, false to disable
      */
-    public static void setBstatsEnabled(boolean enabled) {
+    public static synchronized void setBstatsEnabled(boolean enabled) {
         bstatsEnabled = enabled;
     }
 
