@@ -47,6 +47,26 @@ public class ChaosChickensFabric implements ModInitializer {
     private static final Map<TraitType, FabricTrait> traitInstances = new ConcurrentHashMap<>();
     private static final Random RANDOM = new Random();
 
+    public static class ScheduledBlockRestore {
+        public final ServerLevel level;
+        public final net.minecraft.core.BlockPos pos;
+        public final net.minecraft.world.level.block.state.BlockState originalState;
+        public final long restoreTick;
+
+        public ScheduledBlockRestore(ServerLevel level, net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.state.BlockState originalState, long restoreTick) {
+            this.level = level;
+            this.pos = pos;
+            this.originalState = originalState;
+            this.restoreTick = restoreTick;
+        }
+    }
+
+    private static final List<ScheduledBlockRestore> blockRestorations = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    public static void registerBlockRestore(ServerLevel level, net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.state.BlockState original, long delayTicks) {
+        blockRestorations.add(new ScheduledBlockRestore(level, pos, original, globalTickCounter + delayTicks));
+    }
+
     @Override
     public void onInitialize() {
         LOGGER.info("Chaos Chickens initializing...");
@@ -161,10 +181,19 @@ public class ChaosChickensFabric implements ModInitializer {
         activeChickens.remove(uuid);
         chickenTickCounters.remove(uuid);
         appliedChickens.remove(uuid);
+        com.chaoschickens.fabric.trait.BossTrait.clearBossBar(uuid);
     }
 
     private void onServerTick(MinecraftServer server) {
         globalTickCounter++;
+
+        for (ScheduledBlockRestore restore : blockRestorations) {
+            if (globalTickCounter >= restore.restoreTick) {
+                restore.level.setBlockAndUpdate(restore.pos, restore.originalState);
+                blockRestorations.remove(restore);
+            }
+        }
+
         if (globalTickCounter % 10 != 0) return;
 
         for (ServerLevel world : server.getAllLevels()) {

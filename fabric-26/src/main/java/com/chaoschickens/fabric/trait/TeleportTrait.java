@@ -14,6 +14,7 @@ import net.minecraft.world.entity.animal.chicken.Chicken;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.ChatFormatting;
 
@@ -25,10 +26,10 @@ import net.minecraft.ChatFormatting;
 public class TeleportTrait extends FabricTrait {
 
     /** Maximum teleport distance in blocks. */
-    private static final double TELEPORT_RANGE = 15.0;
+    private static final double TELEPORT_RANGE = 6.0;
 
     /** Minimum teleport distance to avoid teleporting to the same spot. */
-    private static final double MIN_TELEPORT_DISTANCE = 3.0;
+    private static final double MIN_TELEPORT_DISTANCE = 2.0;
 
     public TeleportTrait() {
         super(TraitType.TELEPORT, "Randomly teleports around! Hard to catch!", 0.6,
@@ -46,8 +47,18 @@ public class TeleportTrait extends FabricTrait {
     public void onTick(Chicken chicken) {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.level() instanceof ServerLevel serverWorld)) return;
+        teleport(chicken, serverWorld);
+    }
 
-        // Spawn ender particles before teleport
+    @Override
+    public void onDamage(Chicken chicken, DamageSource source, float amount) {
+        if (chicken == null || chicken.isRemoved()) return;
+        if (chicken.level() instanceof ServerLevel serverWorld) {
+            teleport(chicken, serverWorld);
+        }
+    }
+
+    public void teleport(Chicken chicken, ServerLevel serverWorld) {
         if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.sendParticles(
                     ParticleTypes.PORTAL,
@@ -56,7 +67,6 @@ public class TeleportTrait extends FabricTrait {
             );
         }
 
-        // Calculate random teleport position
         var random = chicken.getRandom();
         double offsetX = (random.nextDouble() - 0.5) * 2.0 * TELEPORT_RANGE;
         double offsetY = random.nextDouble() * 4.0 - 2.0;
@@ -66,11 +76,9 @@ public class TeleportTrait extends FabricTrait {
         double newY = Math.max(chicken.getY() + offsetY - 2.0, serverWorld.getMinY());
         double newZ = chicken.getZ() + offsetZ;
 
-        // Verify the target chunk is loaded before teleporting
         net.minecraft.core.BlockPos targetPos = net.minecraft.core.BlockPos.containing(newX, newY, newZ);
         if (!serverWorld.hasChunkAt(targetPos)) return;
 
-        // Find a safe landing position (try to land on solid ground)
         for (int i = 0; i < 10; i++) {
             net.minecraft.core.BlockPos checkPos = targetPos.below(i);
             if (!serverWorld.getBlockState(checkPos).isAir()
@@ -81,18 +89,22 @@ public class TeleportTrait extends FabricTrait {
             }
         }
 
-        // Teleport the chicken
+        serverWorld.playSound(
+                null, chicken.getX(), chicken.getY(), chicken.getZ(),
+                SoundEvents.ENDERMAN_TELEPORT,
+                net.minecraft.sounds.SoundSource.NEUTRAL,
+                1.0f, 1.0f
+        );
+
         chicken.setPos(newX, newY, newZ);
 
-        // Play teleport sound
         serverWorld.playSound(
                 null, newX, newY, newZ,
                 SoundEvents.ENDERMAN_TELEPORT,
                 net.minecraft.sounds.SoundSource.NEUTRAL,
-                0.5f, 1.0f
+                1.0f, 1.0f
         );
 
-        // Spawn ender particles at new position
         if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.sendParticles(
                     ParticleTypes.PORTAL,

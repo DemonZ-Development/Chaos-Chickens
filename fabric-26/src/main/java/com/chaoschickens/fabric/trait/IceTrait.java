@@ -87,14 +87,18 @@ public class IceTrait extends FabricTrait {
         // Freeze nearest blocks into ice (2-block radius)
         BlockPos center = chicken.blockPosition();
         net.minecraft.world.level.Level world = chicken.level();
-        int radius = 2;
-        for (int x = -radius; x <= radius; x++) {
-            for (int y = -radius; y <= radius; y++) {
-                for (int z = -radius; z <= radius; z++) {
-                    BlockPos pos = center.offset(x, y, z);
-                    net.minecraft.world.level.block.state.BlockState state = world.getBlockState(pos);
-                    if (!state.is(Blocks.BEDROCK) && !state.is(Blocks.OBSIDIAN) && !state.is(Blocks.BARRIER)) {
-                        world.setBlockAndUpdate(pos, Blocks.ICE.defaultBlockState());
+        if (world instanceof ServerLevel serverWorld) {
+            int radius = 2;
+            for (int x = -radius; x <= radius; x++) {
+                for (int y = -radius; y <= radius; y++) {
+                    for (int z = -radius; z <= radius; z++) {
+                        BlockPos pos = center.offset(x, y, z);
+                        net.minecraft.world.level.block.state.BlockState state = world.getBlockState(pos);
+                        if (!state.isAir() && !state.is(Blocks.ICE) && !state.is(Blocks.FROSTED_ICE)
+                                && !state.is(Blocks.BEDROCK) && !state.is(Blocks.OBSIDIAN) && !state.is(Blocks.BARRIER)) {
+                            com.chaoschickens.fabric.ChaosChickensFabric.registerBlockRestore(serverWorld, pos, state, 200);
+                            world.setBlockAndUpdate(pos, Blocks.ICE.defaultBlockState());
+                        }
                     }
                 }
             }

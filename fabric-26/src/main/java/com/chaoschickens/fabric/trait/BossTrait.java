@@ -28,6 +28,15 @@ public class BossTrait extends FabricTrait {
 
     private static final Random RANDOM = new Random();
 
+    private static final java.util.Map<java.util.UUID, net.minecraft.server.level.ServerBossEvent> bossEvents = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void clearBossBar(java.util.UUID uuid) {
+        net.minecraft.server.level.ServerBossEvent event = bossEvents.remove(uuid);
+        if (event != null) {
+            event.removeAllPlayers();
+        }
+    }
+
     public BossTrait() {
         super(TraitType.BOSS, "A powerful chicken with multiple chaos traits combined!", 0.02,
                 true, true, 20);
@@ -69,24 +78,159 @@ public class BossTrait extends FabricTrait {
         chicken.setCustomName(Component.literal("BOSS Chicken").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
         chicken.setCustomNameVisible(true);
         if (chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH) != null) {
-            chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(12.0);
-            chicken.setHealth(12.0f);
+            chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(80.0);
+            chicken.setHealth(80.0f);
         }
     }
 
     @Override
     public void onTick(Chicken chicken) {
         if (chicken == null || chicken.isRemoved() || chicken.isDeadOrDying()) return;
+        if (!(chicken.level() instanceof ServerLevel serverWorld)) return;
 
-        // Boss aura particles (if enabled)
-        if (ConfigLoader.getConfig().isTraitParticlesEnabled()) {
-            ((ServerLevel) chicken.level()).sendParticles(
-                net.minecraft.core.particles.PowerParticleOption.create(ParticleTypes.DRAGON_BREATH, 1.0f),
-                chicken.getX(), chicken.getY() + 1, chicken.getZ(),
-                1, 0.0, 0.05, 0.0, 0.0);
+        // --- Boss Bar Management ---
+        net.minecraft.server.level.ServerBossEvent bossEvent = bossEvents.computeIfAbsent(chicken.getUUID(), uuid -> {
+            net.minecraft.server.level.ServerBossEvent event = new net.minecraft.server.level.ServerBossEvent(
+                    uuid,
+                    Component.literal("BOSS Chicken").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD),
+                    net.minecraft.world.BossEvent.BossBarColor.RED,
+                    net.minecraft.world.BossEvent.BossBarOverlay.PROGRESS
+            );
+            event.setVisible(true);
+            return event;
+        });
+
+        bossEvent.setProgress(chicken.getHealth() / chicken.getMaxHealth());
+
+        java.util.Set<net.minecraft.server.level.ServerPlayer> currentPlayers = new java.util.HashSet<>();
+        for (net.minecraft.server.level.ServerPlayer player : serverWorld.players()) {
+            if (player.distanceToSqr(chicken) <= 16.0 * 16.0) {
+                currentPlayers.add(player);
+            }
+        }
+        for (net.minecraft.server.level.ServerPlayer player : currentPlayers) {
+            if (!bossEvent.getPlayers().contains(player)) {
+                bossEvent.addPlayer(player);
+            }
+        }
+        java.util.List<net.minecraft.server.level.ServerPlayer> toRemove = new java.util.ArrayList<>();
+        for (net.minecraft.server.level.ServerPlayer player : bossEvent.getPlayers()) {
+            if (!currentPlayers.contains(player)) {
+                toRemove.add(player);
+            }
+        }
+        for (net.minecraft.server.level.ServerPlayer player : toRemove) {
+            bossEvent.removePlayer(player);
         }
 
-        // Tick all sub-traits!
+        // --- Epic Animations & Particles ---
+        if (ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+            double time = chicken.tickCount * 0.15;
+            double radius = 1.2;
+            double offsetX = Math.cos(time) * radius;
+            double offsetZ = Math.sin(time) * radius;
+            serverWorld.sendParticles(
+                ParticleTypes.WITCH,
+                chicken.getX() + offsetX, chicken.getY() + 0.8, chicken.getZ() + offsetZ,
+                2, 0.0, 0.0, 0.0, 0.0
+            );
+            serverWorld.sendParticles(
+                ParticleTypes.PORTAL,
+                chicken.getX() - offsetX, chicken.getY() + 0.8, chicken.getZ() - offsetZ,
+                2, 0.0, 0.0, 0.0, 0.0
+            );
+
+            if (chicken.tickCount % 10 == 0) {
+                serverWorld.sendParticles(
+                    ParticleTypes.SOUL_FIRE_FLAME,
+                    chicken.getX(), chicken.getY() + 1.5, chicken.getZ(),
+                    5, 0.2, 0.2, 0.2, 0.02
+                );
+            }
+        }
+
+        // --- Boss Melodic hum ---
+        if (chicken.tickCount % 40 == 0) {
+            serverWorld.playSound(
+                null,
+                chicken.getX(), chicken.getY(), chicken.getZ(),
+                net.minecraft.sounds.SoundEvents.NOTE_BLOCK_BASS.value(),
+                net.minecraft.sounds.SoundSource.HOSTILE,
+                1.5f, 0.5f
+            );
+        }
+
+        // --- Surrounding Block Control (Block Throwing) ---
+        if (chicken.tickCount % 60 == 0) {
+            Player targetPlayer = null;
+            double nearestDistSq = Double.MAX_VALUE;
+            for (Player player : serverWorld.players()) {
+                if (!player.isCreative() && !player.isSpectator() && !player.isDeadOrDying()) {
+                    double distSq = player.distanceToSqr(chicken);
+                    if (distSq < 12.0 * 12.0 && distSq < nearestDistSq) {
+                        nearestDistSq = distSq;
+                        targetPlayer = player;
+                    }
+                }
+            }
+
+            if (targetPlayer != null) {
+                var random = chicken.getRandom();
+                net.minecraft.core.BlockPos playerPos = targetPlayer.blockPosition();
+                net.minecraft.core.BlockPos groundPos = null;
+                for (int attempt = 0; attempt < 15; attempt++) {
+                    int rx = random.nextInt(9) - 4;
+                    int rz = random.nextInt(9) - 4;
+                    net.minecraft.core.BlockPos checkPos = playerPos.offset(rx, -1, rz);
+                    net.minecraft.world.level.block.state.BlockState state = serverWorld.getBlockState(checkPos);
+                    if (!state.isAir() && state.isSolid() && !state.is(net.minecraft.world.level.block.Blocks.BEDROCK)
+                            && !state.is(net.minecraft.world.level.block.Blocks.BARRIER)) {
+                        groundPos = checkPos;
+                        break;
+                    }
+                }
+
+                if (groundPos != null) {
+                    net.minecraft.world.level.block.state.BlockState blockState = serverWorld.getBlockState(groundPos);
+                    serverWorld.setBlockAndUpdate(groundPos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+
+                    net.minecraft.core.BlockPos spawnPos = groundPos.above();
+                    net.minecraft.world.entity.item.FallingBlockEntity fallingBlock = net.minecraft.world.entity.item.FallingBlockEntity.fall(
+                            serverWorld,
+                            spawnPos,
+                            blockState
+                    );
+
+                    if (fallingBlock != null) {
+                        net.minecraft.world.phys.Vec3 targetVec = new net.minecraft.world.phys.Vec3(
+                                targetPlayer.getX() - spawnPos.getX(),
+                                (targetPlayer.getY() + 1.2) - spawnPos.getY(),
+                                targetPlayer.getZ() - spawnPos.getZ()
+                        );
+                        double distance = targetVec.length();
+                        if (distance > 0) {
+                            net.minecraft.world.phys.Vec3 velocity = targetVec.scale(0.85 / distance);
+                            fallingBlock.setDeltaMovement(velocity);
+                        }
+
+                        serverWorld.playSound(
+                                null,
+                                spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(),
+                                net.minecraft.sounds.SoundEvents.WITHER_SHOOT,
+                                net.minecraft.sounds.SoundSource.HOSTILE,
+                                1.5f, 0.5f
+                        );
+
+                        serverWorld.sendParticles(
+                                ParticleTypes.EXPLOSION,
+                                spawnPos.getX() + 0.5, spawnPos.getY() + 0.5, spawnPos.getZ() + 0.5,
+                                5, 0.2, 0.2, 0.2, 0.05
+                        );
+                    }
+                }
+            }
+        }
+
         java.util.List<TraitType> subTraits = ChickenDataUtil.getBossSubTraits(chicken);
         for (TraitType type : subTraits) {
             com.chaoschickens.fabric.trait.FabricTrait trait = ChaosChickensFabric.getTraitInstance(type);
@@ -99,6 +243,7 @@ public class BossTrait extends FabricTrait {
     @Override
     public void onDeath(Chicken chicken, net.minecraft.world.damagesource.DamageSource source) {
         if (chicken == null) return;
+        clearBossBar(chicken.getUUID());
 
         if (ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             ((ServerLevel) chicken.level()).sendParticles(ParticleTypes.EXPLOSION_EMITTER,

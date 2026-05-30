@@ -39,6 +39,35 @@ public abstract class LivingEntityMixin {
         }
     }
 
+    @Inject(method = "hurt", at = @At("HEAD"), cancellable = true)
+    private void chaoschickens$onHurt(DamageSource source, float amount, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
+        try {
+            LivingEntity self = (LivingEntity) (Object) this;
+            if (self instanceof Chicken chicken) {
+                TraitType type = ChaosChickensFabric.getActiveTrait(chicken).orElse(TraitType.EMPTY);
+                if (type == TraitType.FIRE) {
+                    if (source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)) {
+                        cir.setReturnValue(false);
+                        return;
+                    }
+                } else if (type == TraitType.BOSS) {
+                    java.util.List<TraitType> subTraits = com.chaoschickens.fabric.util.ChickenDataUtil.getBossSubTraits(chicken);
+                    if (subTraits.contains(TraitType.FIRE) && source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)) {
+                        cir.setReturnValue(false);
+                        return;
+                    }
+                }
+
+                if (type != TraitType.EMPTY) {
+                    com.chaoschickens.fabric.trait.FabricTrait trait = ChaosChickensFabric.getTraitInstance(type);
+                    if (trait != null) {
+                        trait.onDamage(chicken, source, amount);
+                    }
+                }
+            }
+        } catch (Exception e) { /* No-op */ }
+    }
+
     @Inject(method = "die", at = @At("HEAD"))
     private void chaoschickens$onDeath(DamageSource source, CallbackInfo ci) {
         try {

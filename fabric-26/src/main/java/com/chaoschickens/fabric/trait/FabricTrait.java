@@ -26,5 +26,6 @@ public abstract class FabricTrait extends AbstractTrait {
     public void onTick(Chicken chicken) { }
     public void onDeath(Chicken chicken, DamageSource source) { }
     public void onPlayerNear(Chicken chicken, Player player) { }
+    public void onDamage(Chicken chicken, DamageSource source, float amount) { }
     public double getProximityRange() { return 0; }
 }

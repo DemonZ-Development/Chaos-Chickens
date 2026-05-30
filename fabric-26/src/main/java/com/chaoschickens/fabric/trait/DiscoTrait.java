@@ -40,6 +40,16 @@ public class DiscoTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         chicken.setCustomName(Component.literal("Disco Chicken").withStyle(ChatFormatting.LIGHT_PURPLE));
         chicken.setCustomNameVisible(true);
+
+        if (chicken.level() instanceof ServerLevel serverWorld) {
+            serverWorld.playSound(
+                    null,
+                    chicken.getX(), chicken.getY(), chicken.getZ(),
+                    SoundEvents.MUSIC_DISC_PIGSTEP.value(),
+                    net.minecraft.sounds.SoundSource.RECORDS,
+                    1.5f, 1.0f
+            );
+        }
     }
 
     @Override
@@ -47,14 +57,24 @@ public class DiscoTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.level() instanceof ServerLevel serverWorld)) return;
 
-        // Play random note block sound
-        float pitch = 0.5f + chicken.getRandom().nextFloat() * 1.5f;
+        // Play random note block sound with true musical scale sequence!
+        var random = chicken.getRandom();
+        net.minecraft.sounds.SoundEvent sound = switch (random.nextInt(6)) {
+            case 0 -> SoundEvents.NOTE_BLOCK_HARP.value();
+            case 1 -> SoundEvents.NOTE_BLOCK_BASS.value();
+            case 2 -> SoundEvents.NOTE_BLOCK_BELL.value();
+            case 3 -> SoundEvents.NOTE_BLOCK_FLUTE.value();
+            case 4 -> SoundEvents.NOTE_BLOCK_CHIME.value();
+            case 5 -> SoundEvents.NOTE_BLOCK_XYLOPHONE.value();
+            default -> SoundEvents.NOTE_BLOCK_HARP.value();
+        };
+        float pitch = (float) Math.pow(2.0, (random.nextInt(12) - 6) / 12.0); // True musical scale semitone pitch!
         serverWorld.playSound(
                 null,
                 chicken.getX(), chicken.getY(), chicken.getZ(),
-                SoundEvents.NOTE_BLOCK_HARP.value(),
-                net.minecraft.sounds.SoundSource.NEUTRAL,
-                0.5f, pitch
+                sound,
+                net.minecraft.sounds.SoundSource.RECORDS,
+                1.2f, pitch
         );
 
         // Spawn colorful note particles
@@ -66,18 +86,16 @@ public class DiscoTrait extends FabricTrait {
                 1.0
         );
 
-        // Dye nearby sheep every 2 seconds (30 ticks at interval 15 = every 2 ticks, so gate by tickCount)
-        if (chicken.tickCount % 30 == 0) {
-            List<Sheep> nearbySheep = serverWorld.getEntitiesOfClass(
-                    Sheep.class,
-                    chicken.getBoundingBox().inflate(SHEEP_DYE_RANGE),
-                    sheep -> sheep.isAlive()
-            );
+        // Dye nearby sheep continuously in range
+        List<Sheep> nearbySheep = serverWorld.getEntitiesOfClass(
+                Sheep.class,
+                chicken.getBoundingBox().inflate(SHEEP_DYE_RANGE),
+                sheep -> sheep.isAlive()
+        );
 
-            for (Sheep sheep : nearbySheep) {
-                DyeColor newColor = DyeColor.values()[chicken.getRandom().nextInt(DyeColor.values().length)];
-                sheep.setColor(newColor);
-            }
+        for (Sheep sheep : nearbySheep) {
+            DyeColor newColor = DyeColor.values()[chicken.getRandom().nextInt(DyeColor.values().length)];
+            sheep.setColor(newColor);
         }
     }
 }
