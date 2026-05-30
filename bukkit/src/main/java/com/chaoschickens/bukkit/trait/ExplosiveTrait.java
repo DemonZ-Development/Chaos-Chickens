@@ -34,12 +34,13 @@ public class ExplosiveTrait extends BukkitTrait {
     @Override
     public void onDeath(Chicken chicken, org.bukkit.event.entity.EntityDeathEvent event) {
         if (chicken == null) return;
-        // Create explosion at death location: power 2.0, no fire, no block damage
+        boolean breakBlocks = plugin.getConfigManager().isExplosiveChickenDamageBlocks();
+        // Create explosion at death location
         chicken.getWorld().createExplosion(
                 chicken.getLocation(),
                 2.0f,
                 false,  // no fire
-                false   // no block damage
+                breakBlocks
         );
     }
 }

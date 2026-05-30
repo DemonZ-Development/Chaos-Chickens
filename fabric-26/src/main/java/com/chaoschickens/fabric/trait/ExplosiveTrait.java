@@ -41,14 +41,15 @@ public class ExplosiveTrait extends FabricTrait {
     public void onDeath(Chicken chicken, DamageSource source) {
         if (chicken == null) return;
         Level world = chicken.level();
-        // Create explosion with no block damage (ExplosionInteraction.NONE)
+        boolean damageBlocks = com.chaoschickens.fabric.util.ConfigLoader.getConfig().isExplosiveChickenDamageBlocks();
+        // Create explosion that optionally damages blocks
         world.explode(
                 chicken,
                 chicken.getX(),
                 chicken.getY(),
                 chicken.getZ(),
                 EXPLOSION_POWER,
-                Level.ExplosionInteraction.NONE
+                damageBlocks ? Level.ExplosionInteraction.TNT : Level.ExplosionInteraction.NONE
         );
     }
 }

@@ -11,6 +11,10 @@ commands:
     aliases:
       - cc
     permission: chaoschickens.admin
+  ccspawn:
+    description: Quick shorthand to spawn a chaos chicken with a trait
+    usage: /<command> <trait>
+    permission: chaoschickens.admin
 permissions:
   chaoschickens.admin:
     description: Allows access to all ChaosChickens admin commands

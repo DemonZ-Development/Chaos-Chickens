@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.chaoschickens'
-version = '1.0.1'
+version = '1.1.1'
 
 repositories {
     mavenCentral()
@@ -27,6 +27,7 @@ dependencies {
     // MockBukkit for testing
     testImplementation "com.github.seeseemelk:MockBukkit-v1.20:3.57.0"
     testImplementation "org.junit.jupiter:junit-jupiter:5.10.1"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
 
 def targetJava = project.hasProperty('targetJava') ? project.property('targetJava').toString() : '17'

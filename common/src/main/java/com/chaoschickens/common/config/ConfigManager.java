@@ -35,6 +35,7 @@ public class ConfigManager {
     private boolean checkForUpdates = true;      // Check Modrinth for updates on startup
     private boolean enableFoliaSupport = true;   // Enable Folia-compatible scheduling
     private boolean bstatsEnabled = true;        // Enable bStats analytics
+    private boolean explosiveChickenDamageBlocks = true; // Whether explosive chickens destroy blocks on death
     private Map<String, Boolean> traitEnabled = new LinkedHashMap<>();
     private Map<String, Double> traitWeights = new LinkedHashMap<>();
     private Map<String, Object> customValues = new LinkedHashMap<>();
@@ -107,6 +108,10 @@ public class ConfigManager {
 
     public boolean isBstatsEnabled() {
         return bstatsEnabled;
+    }
+
+    public boolean isExplosiveChickenDamageBlocks() {
+        return explosiveChickenDamageBlocks;
     }
 
     public boolean isTraitEnabled(String traitKey) {
@@ -191,6 +196,10 @@ public class ConfigManager {
 
     public void setBstatsEnabled(boolean bstatsEnabled) {
         this.bstatsEnabled = bstatsEnabled;
+    }
+
+    public void setExplosiveChickenDamageBlocks(boolean explosiveChickenDamageBlocks) {
+        this.explosiveChickenDamageBlocks = explosiveChickenDamageBlocks;
     }
 
     public void setTraitEnabled(String traitKey, boolean enabled) {

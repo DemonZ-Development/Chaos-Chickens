@@ -6,7 +6,10 @@
 config-version: 3
 
 # Chance that a spawned chicken gets a chaos trait (0.0 - 1.0)
-chaos-chance: 0.35
+chaos-chance: 0.50
+
+# Whether explosive chickens destroy blocks on death
+explosive-chicken-damage-blocks: true
 
 # Boss chickens have multiple traits combined
 enable-boss-chickens: true

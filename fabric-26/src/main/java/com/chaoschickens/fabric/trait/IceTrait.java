@@ -84,6 +84,22 @@ public class IceTrait extends FabricTrait {
     public void onDeath(Chicken chicken, DamageSource source) {
         if (chicken == null) return;
 
+        // Freeze nearest blocks into ice (2-block radius)
+        BlockPos center = chicken.blockPosition();
+        net.minecraft.world.level.Level world = chicken.level();
+        int radius = 2;
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -radius; y <= radius; y++) {
+                for (int z = -radius; z <= radius; z++) {
+                    BlockPos pos = center.offset(x, y, z);
+                    net.minecraft.world.level.block.state.BlockState state = world.getBlockState(pos);
+                    if (!state.is(Blocks.BEDROCK) && !state.is(Blocks.OBSIDIAN) && !state.is(Blocks.BARRIER)) {
+                        world.setBlockAndUpdate(pos, Blocks.ICE.defaultBlockState());
+                    }
+                }
+            }
+        }
+
         // Drop ice item
         net.minecraft.world.entity.item.ItemEntity itemEntity = new net.minecraft.world.entity.item.ItemEntity(
                 chicken.level(),

@@ -94,7 +94,7 @@ public final class ConfigLoader {
         root.addProperty(ConfigVersion.CONFIG_VERSION_KEY, ConfigVersion.CURRENT_VERSION);
 
         Map<String, Object> defaults = new java.util.LinkedHashMap<>();
-        defaults.put("chaosChance", 0.35);
+        defaults.put("chaosChance", 0.50);
         defaults.put("enableBossChickens", true);
         defaults.put("bossChance", 0.02);
         defaults.put("bossTraitCount", 3);
@@ -106,6 +106,7 @@ public final class ConfigLoader {
         defaults.put("checkForUpdates", true);
         defaults.put("enableFoliaSupport", true);
         defaults.put("bstatsEnabled", true);
+        defaults.put("explosiveChickenDamageBlocks", true);
 
         for (Map.Entry<String, Object> entry : defaults.entrySet()) {
             if (!root.has(entry.getKey())) {
@@ -168,7 +169,7 @@ public final class ConfigLoader {
 
         JsonObject root = new JsonObject();
         root.addProperty(ConfigVersion.CONFIG_VERSION_KEY, ConfigVersion.CURRENT_VERSION);
-        root.addProperty("chaosChance", 0.35);
+        root.addProperty("chaosChance", 0.50);
         root.addProperty("enableBossChickens", true);
         root.addProperty("bossChance", 0.02);
         root.addProperty("bossTraitCount", 3);
@@ -180,6 +181,7 @@ public final class ConfigLoader {
         root.addProperty("checkForUpdates", true);
         root.addProperty("enableFoliaSupport", true);
         root.addProperty("bstatsEnabled", true);
+        root.addProperty("explosiveChickenDamageBlocks", true);
 
         JsonObject traits = new JsonObject();
         String[] defaultTraits = {"explosive","speed","fire","magnet","golden","disco","zombie","teleport","ice","cursed"};
@@ -209,10 +211,10 @@ public final class ConfigLoader {
 
         configManager.setConfigVersion(getSafeInt(root, ConfigVersion.CONFIG_VERSION_KEY,
                 ConfigVersion.CURRENT_VERSION));
-        double chaosChance = getSafeDouble(root, "chaosChance", 0.35);
+        double chaosChance = getSafeDouble(root, "chaosChance", 0.50);
         if (chaosChance < 0 || chaosChance > 1) {
-            LOGGER.warn("chaosChance ({}) is out of range [0,1], using default 0.35", chaosChance);
-            chaosChance = 0.35;
+            LOGGER.warn("chaosChance ({}) is out of range [0,1], using default 0.50", chaosChance);
+            chaosChance = 0.50;
         }
         configManager.setChaosChance(chaosChance);
         configManager.setBossChickensEnabled(getSafeBoolean(root, "enableBossChickens", true));
@@ -231,6 +233,7 @@ public final class ConfigLoader {
         configManager.setUpdateCheckingEnabled(getSafeBoolean(root, "checkForUpdates", true));
         configManager.setFoliaSupportEnabled(getSafeBoolean(root, "enableFoliaSupport", true));
         configManager.setBstatsEnabled(getSafeBoolean(root, "bstatsEnabled", true));
+        configManager.setExplosiveChickenDamageBlocks(getSafeBoolean(root, "explosiveChickenDamageBlocks", true));
 
         if (root.has("traits") && root.get("traits").isJsonObject()) {
             JsonObject traits = root.getAsJsonObject("traits");

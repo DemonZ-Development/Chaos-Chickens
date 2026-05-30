@@ -14,7 +14,7 @@ pluginManagement {
 
 rootProject.name = 'chaoschickens'
 include 'common'
-// include 'bukkit'
+include 'bukkit'
 // include 'fabric'
 include 'fabric-26'
 // include 'forge'

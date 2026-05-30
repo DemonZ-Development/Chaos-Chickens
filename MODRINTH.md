@@ -27,7 +27,7 @@ From simple speed boosts to massive detonations, item-stealing magnets, and rare
 
 | Icon | Trait Name | Hostility | Proximity Range | Description |
 |:---:|---|---|---|---|
-| 💥 | **Explosive** | ⚡ High (on death) | N/A | Detonates on death. Power is safe (visual & damage, **no block damage**). |
+| 💥 | **Explosive** | ⚡ High (on death) | N/A | Detonates on death. Power has configurable block damage (defaults to **enabled**). |
 | 🏃 | **Speed** | ⚪ Passive | N/A | Runs at a blistering **3x default speed** (`0.75`). |
 | 🔥 | **Fire** | 🟡 Medium | N/A | Sets block underneath on fire. Completely immune to fire/lava damage. |
 | 🧲 | **Magnet** | ⚪ Passive | 6.0 blocks | Pulls nearby dropped items toward itself (steals player loot!). |
@@ -35,7 +35,7 @@ From simple speed boosts to massive detonations, item-stealing magnets, and rare
 | 🎵 | **Disco** | ⚪ Passive | N/A | Spawns rainbow rings & plays note block chimes continuously. |
 | 🧟 | **Zombie** | 🔴 Hostile | 8.0 blocks | Chases players, pecks for damage, and summons custom zombie reinforcements. |
 | 🔄 | **Teleport** | ⚪ Passive | 5.0 blocks | Teleports away randomly when approached or taking damage. |
-| 🧊 | **Ice** | ⚪ Passive | N/A | Freezes water below it into Frosted Ice, places snow layers on solid blocks. |
+| 🧊 | **Ice** | ⚪ Passive | N/A | Freezes water into Frosted Ice, places snow, and freezes a 2-block radius on death. |
 | 💀 | **Cursed** | 🔴 Hostile | 6.0 blocks | Inflicts Blindness, Slowness, or Poison to players who get too close. |
 | 👑 | **Boss** | ⚡ Extreme | 16.0 blocks | **Apex Chicken!** Combines 3+ random active traits, 3x max health, and weakness aura. |
 

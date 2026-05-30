@@ -53,6 +53,15 @@ public class ChickenSpawnListener implements Listener {
 
         Chicken chicken = (Chicken) event.getEntity();
 
+        // Baby chickens always spawn with traits
+        if (!chicken.isAdult()) {
+            TraitType traitType = plugin.pickRandomTrait();
+            if (traitType != TraitType.EMPTY) {
+                plugin.assignTrait(chicken, traitType);
+            }
+            return;
+        }
+
         // Check if only natural spawns should be affected (allow spawn eggs to bypass)
         if (plugin.getConfigManager().isOnlyNaturalSpawns()) {
             CreatureSpawnEvent.SpawnReason reason = event.getSpawnReason();

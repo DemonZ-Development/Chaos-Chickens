@@ -89,6 +89,21 @@ public class IceTrait extends BukkitTrait {
     public void onDeath(Chicken chicken, EntityDeathEvent event) {
         if (chicken == null || event == null) return;
 
+        // Freeze nearest blocks into ice (2-block radius)
+        Location loc = chicken.getLocation();
+        int radius = 2;
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -radius; y <= radius; y++) {
+                for (int z = -radius; z <= radius; z++) {
+                    Block block = loc.clone().add(x, y, z).getBlock();
+                    Material type = block.getType();
+                    if (type != Material.BEDROCK && type != Material.OBSIDIAN && type != Material.BARRIER) {
+                        block.setType(Material.ICE);
+                    }
+                }
+            }
+        }
+
         // Remove default egg drops and add ice instead
         event.getDrops().removeIf(item -> item.getType() == Material.EGG);
         event.getDrops().add(new ItemStack(Material.ICE, 1));

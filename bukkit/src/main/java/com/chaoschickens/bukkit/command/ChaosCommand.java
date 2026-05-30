@@ -48,6 +48,14 @@ public class ChaosCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (label.equalsIgnoreCase("ccspawn") || command.getName().equalsIgnoreCase("ccspawn")) {
+            if (args.length == 0) {
+                sender.sendMessage(ChatColor.RED + "Usage: /ccspawn <trait>");
+                return true;
+            }
+            return handleSpawn(sender, new String[] { "spawn", args[0] });
+        }
+
         if (args.length == 0) {
             sendHelp(sender);
             return true;
@@ -309,6 +317,20 @@ public class ChaosCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
+
+        if (command.getName().equalsIgnoreCase("ccspawn") || alias.equalsIgnoreCase("ccspawn")) {
+            if (args.length == 1) {
+                String input = args[0].toLowerCase();
+                for (TraitType type : TraitType.values()) {
+                    if (type != TraitType.EMPTY && type != TraitType.CUSTOM) {
+                        if (type.getKey().startsWith(input)) {
+                            completions.add(type.getKey());
+                        }
+                    }
+                }
+            }
+            return completions;
+        }
 
         if (args.length == 1) {
             // Suggest subcommands

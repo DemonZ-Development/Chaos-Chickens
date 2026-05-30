@@ -96,6 +96,12 @@ public class ChaosChickensFabric implements ModInitializer {
                 // Mark as checked
                 addCheckedChicken(chicken.getUuid());
 
+                // Baby chickens always spawn with traits
+                if (chicken.isBaby()) {
+                    assignTrait(chicken, null);
+                    return;
+                }
+
                 if (ConfigLoader.getConfig().isOnlyNaturalSpawns()) {
                     return;
                 }
@@ -137,6 +143,10 @@ public class ChaosChickensFabric implements ModInitializer {
 
         // Register server tick event — handle periodic traits
         ServerTickEvents.END_SERVER_TICK.register(this::onServerTick);
+
+        net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+            registerCommands(dispatcher);
+        });
 
         // Check for updates via Modrinth
         String version = net.fabricmc.loader.api.FabricLoader.getInstance()
@@ -341,5 +351,64 @@ public class ChaosChickensFabric implements ModInitializer {
             }
         }
         return count;
+    }
+
+    private void registerCommands(com.mojang.brigadier.CommandDispatcher<net.minecraft.server.command.ServerCommandSource> dispatcher) {
+        com.mojang.brigadier.builder.LiteralArgumentBuilder<net.minecraft.server.command.ServerCommandSource> ccBuilder = net.minecraft.server.command.CommandManager.literal("chaoschickens")
+            .requires(source -> source.hasPermissionLevel(2))
+            .then(net.minecraft.server.command.CommandManager.literal("spawn")
+                .then(net.minecraft.server.command.CommandManager.argument("trait", com.mojang.brigadier.arguments.StringArgumentType.word())
+                    .suggests((context, builder) -> {
+                        for (TraitType type : TraitType.values()) {
+                            if (type != TraitType.EMPTY && type != TraitType.CUSTOM) {
+                                builder.suggest(type.getKey());
+                            }
+                        }
+                        return builder.buildFuture();
+                    })
+                    .executes(context -> spawnChicken(context.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(context, "trait")))
+                )
+            );
+
+        com.mojang.brigadier.builder.LiteralArgumentBuilder<net.minecraft.server.command.ServerCommandSource> ccSpawnBuilder = net.minecraft.server.command.CommandManager.literal("ccspawn")
+            .requires(source -> source.hasPermissionLevel(2))
+            .then(net.minecraft.server.command.CommandManager.argument("trait", com.mojang.brigadier.arguments.StringArgumentType.word())
+                .suggests((context, builder) -> {
+                    for (TraitType type : TraitType.values()) {
+                        if (type != TraitType.EMPTY && type != TraitType.CUSTOM) {
+                            builder.suggest(type.getKey());
+                        }
+                    }
+                    return builder.buildFuture();
+                })
+                .executes(context -> spawnChicken(context.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(context, "trait")))
+            );
+
+        dispatcher.register(ccBuilder);
+        dispatcher.register(ccSpawnBuilder);
+    }
+
+    private static int spawnChicken(net.minecraft.server.command.ServerCommandSource source, String traitKey) {
+        TraitType traitType = TraitType.fromKey(traitKey);
+        if (traitType == TraitType.EMPTY && !traitKey.equalsIgnoreCase("empty")) {
+            source.sendError(net.minecraft.text.Text.literal("Unknown trait: " + traitKey));
+            return 0;
+        }
+
+        net.minecraft.server.world.ServerWorld world = source.getWorld();
+        net.minecraft.util.math.Vec3d pos = source.getPosition();
+
+        ChickenEntity chicken = net.minecraft.entity.EntityType.CHICKEN.create(world);
+        if (chicken == null) {
+            source.sendError(net.minecraft.text.Text.literal("Failed to create chicken!"));
+            return 0;
+        }
+
+        chicken.refreshPositionAndAngles(pos.x, pos.y, pos.z, 0.0f, 0.0f);
+        assignTrait(chicken, traitType);
+        world.spawnEntity(chicken);
+
+        source.sendFeedback(() -> net.minecraft.text.Text.literal("Spawned a chicken with " + traitType.getDisplayName() + " trait!"), true);
+        return 1;
     }
 }

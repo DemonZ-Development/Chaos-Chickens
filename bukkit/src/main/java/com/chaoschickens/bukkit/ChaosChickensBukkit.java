@@ -251,6 +251,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         configManager.setUpdateCheckingEnabled(config.getBoolean("check-for-updates", true));
         configManager.setFoliaSupportEnabled(config.getBoolean("enable-folia-support", true));
         configManager.setBstatsEnabled(config.getBoolean("bstats-enabled", true));
+        configManager.setExplosiveChickenDamageBlocks(config.getBoolean("explosive-chicken-damage-blocks", true));
 
         // Load trait-specific config
         if (config.isConfigurationSection("traits")) {
@@ -355,6 +356,10 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         ChaosCommand commandHandler = new ChaosCommand(this);
         getCommand("chaoschickens").setExecutor(commandHandler);
         getCommand("chaoschickens").setTabCompleter(commandHandler);
+        if (getCommand("ccspawn") != null) {
+            getCommand("ccspawn").setExecutor(commandHandler);
+            getCommand("ccspawn").setTabCompleter(commandHandler);
+        }
     }
 
     /**

@@ -74,6 +74,23 @@ public class IceTrait extends ForgeTrait {
     @Override
     public void onDeath(Chicken chicken, DamageSource source) {
         if (chicken == null) return;
+
+        // Freeze nearest blocks into ice (2-block radius)
+        BlockPos center = chicken.blockPosition();
+        net.minecraft.world.level.Level level = chicken.level();
+        int radius = 2;
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -radius; y <= radius; y++) {
+                for (int z = -radius; z <= radius; z++) {
+                    BlockPos pos = center.offset(x, y, z);
+                    net.minecraft.world.level.block.state.BlockState state = level.getBlockState(pos);
+                    if (!state.is(Blocks.BEDROCK) && !state.is(Blocks.OBSIDIAN) && !state.is(Blocks.BARRIER)) {
+                        level.setBlockAndUpdate(pos, Blocks.ICE.defaultBlockState());
+                    }
+                }
+            }
+        }
+
         // Drop ice items
         int count = 1 + chicken.getRandom().nextInt(3);
         chicken.spawnAtLocation(new ItemStack(Items.ICE, count));

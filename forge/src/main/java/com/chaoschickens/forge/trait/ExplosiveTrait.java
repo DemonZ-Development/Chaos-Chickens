@@ -40,9 +40,10 @@ public class ExplosiveTrait extends ForgeTrait {
     public void onDeath(Chicken chicken, DamageSource source) {
         if (chicken == null) return;
         if (chicken.level() instanceof ServerLevel serverLevel) {
-            // Create explosion with no block damage
+            boolean damageBlocks = com.chaoschickens.forge.util.ConfigLoader.getConfig().isExplosiveChickenDamageBlocks();
+            // Create explosion with optional block damage
             serverLevel.explode(null, chicken.getX(), chicken.getY(), chicken.getZ(),
-                    EXPLOSION_POWER, false, ServerLevel.ExplosionInteraction.NONE);
+                    EXPLOSION_POWER, false, damageBlocks ? ServerLevel.ExplosionInteraction.TNT : ServerLevel.ExplosionInteraction.NONE);
         }
     }
 }
