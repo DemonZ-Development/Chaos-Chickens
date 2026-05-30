@@ -38,7 +38,7 @@ class ConfigManagerTest {
     @Test
     void testDefaultBossChance() {
         ConfigManager config = new ConfigManager();
-        assertEquals(0.08, config.getBossChance(), 0.001);
+        assertEquals(0.01, config.getBossChance(), 0.001);
     }
 
     @Test
