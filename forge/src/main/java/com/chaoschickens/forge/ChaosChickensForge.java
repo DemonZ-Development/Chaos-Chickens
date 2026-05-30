@@ -283,8 +283,20 @@ public class ChaosChickensForge {
         Player player = null;
         if (event.getSource().getEntity() instanceof Player p) {
             player = p;
-        } else if (chicken.getLastHurtByPlayer() != null) {
-            player = chicken.getLastHurtByPlayer();
+        } else {
+            try {
+                java.lang.reflect.Method m = net.minecraft.world.entity.LivingEntity.class.getDeclaredMethod("getLastHurtByPlayer");
+                m.setAccessible(true);
+                player = (Player) m.invoke(chicken);
+            } catch (Exception e) {
+                try {
+                    java.lang.reflect.Field f = net.minecraft.world.entity.LivingEntity.class.getDeclaredField("lastHurtByPlayer");
+                    f.setAccessible(true);
+                    player = (Player) f.get(chicken);
+                } catch (Exception ex) {
+                    // No-op
+                }
+            }
         }
 
         if (player != null) {
