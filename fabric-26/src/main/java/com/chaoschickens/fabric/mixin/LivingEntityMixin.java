@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class LivingEntityMixin {
 
     @Inject(method = "dropAllDeathLoot", at = @At("HEAD"), cancellable = true)
-    private void chaoschickens$modifyDrops(DamageSource source, CallbackInfo ci) {
+    private void chaoschickens$modifyDrops(ServerLevel level, DamageSource source, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;
         if (!(self instanceof Chicken chicken)) return;
         TraitType trait = ChaosChickensFabric.getActiveTrait(chicken).orElse(TraitType.EMPTY);
@@ -33,7 +33,7 @@ public abstract class LivingEntityMixin {
                 else if (roll < 0.85) { oreDrop = new ItemStack(Items.IRON_INGOT, 1); }
                 else if (roll < 0.95) { oreDrop = new ItemStack(Items.EMERALD, 1); }
                 else { oreDrop = new ItemStack(Items.DIAMOND, 1); }
-                chicken.spawnAtLocation((ServerLevel) chicken.level(), oreDrop);
+                chicken.spawnAtLocation(level, oreDrop);
             }
             ci.cancel();
         }
