@@ -34,21 +34,25 @@ public class ZombieTrait extends FabricTrait {
     private static final double DAMAGE_RANGE = 1.5;
 
     /** Chase speed multiplier. */
-    private static final double CHASE_SPEED = 0.25;
+    private static final double CHASE_SPEED = 0.10;
 
     /** Damage dealt on contact. */
-    private static final float CONTACT_DAMAGE = 1.0f;
+    private static final float CONTACT_DAMAGE = 4.0f;
 
     public ZombieTrait() {
         super(TraitType.ZOMBIE, "A hostile chicken that chases players!", 0.7,
-                true, true, 20);
+                true, true, 1);
     }
 
     @Override
     public void onApply(ChickenEntity chicken) {
         if (chicken == null || chicken.isRemoved()) return;
-        chicken.setCustomName(Text.literal("Zombie Chicken").formatted(Formatting.DARK_RED));
+        chicken.setCustomName(Text.literal("Zombie Chicken").formatted(Formatting.GREEN));
         chicken.setCustomNameVisible(true);
+        if (chicken.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.GENERIC_MAX_HEALTH) != null) {
+            chicken.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.GENERIC_MAX_HEALTH).setBaseValue(20.0);
+            chicken.setHealth(20.0f);
+        }
     }
 
     @Override
@@ -78,10 +82,10 @@ public class ZombieTrait extends FabricTrait {
 
         if (closest == null) return;
 
-        // Chase the player by setting velocity toward them
-        Vec3d direction = closest.getPos().subtract(chicken.getPos()).normalize().multiply(CHASE_SPEED);
-        chicken.setVelocity(direction);
-        chicken.velocityModified = true;
+        // Chase the player using pathfinding
+        if (chicken.age % 5 == 0) {
+            chicken.getNavigation().startMovingTo(closest, 1.25);
+        }
 
         // Deal damage if very close
         if (closest.squaredDistanceTo(chicken) <= DAMAGE_RANGE * DAMAGE_RANGE) {
@@ -89,8 +93,8 @@ public class ZombieTrait extends FabricTrait {
             closest.playSound(SoundEvents.ENTITY_ZOMBIE_AMBIENT, 0.5f, 1.5f);
         }
 
-        // Spawn angry particles
-        if (chicken.age % 10 == 0) {
+        // Spawn angry particles every 5 ticks to avoid visual clutter
+        if (chicken.age % 5 == 0) {
             serverWorld.spawnParticles(
                     ParticleTypes.ANGRY_VILLAGER,
                     chicken.getX(), chicken.getY() + 0.8, chicken.getZ(),

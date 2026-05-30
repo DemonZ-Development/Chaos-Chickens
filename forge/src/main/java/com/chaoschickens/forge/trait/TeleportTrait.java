@@ -11,24 +11,30 @@ package com.chaoschickens.forge.trait;
 
 import com.chaoschickens.common.trait.TraitType;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.animal.Chicken;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Teleport chicken trait. Randomly teleports every ~10 seconds.
+ * Teleport chicken trait.
+ * Teleports like an enderman: 3-8 block range, safe surface detection,
+ * no suffocation, no lava landing.
  */
 public class TeleportTrait extends ForgeTrait {
 
-    private static final double TELEPORT_RANGE = 15.0;
+    private static final double MIN_RANGE = 3.0;
+    private static final double MAX_RANGE = 8.0;
+    private static final int MAX_ATTEMPTS = 20;
 
     public TeleportTrait() {
         super(TraitType.TELEPORT, "Randomly teleports around! Hard to catch!", 0.6,
-                false, true, 200);
+                false, true, 160); // Every 8 seconds
     }
 
     @Override
@@ -36,52 +42,98 @@ public class TeleportTrait extends ForgeTrait {
         if (chicken == null || chicken.isRemoved()) return;
         chicken.setCustomName(Component.literal("Teleport Chicken").withStyle(ChatFormatting.DARK_PURPLE));
         chicken.setCustomNameVisible(true);
+        if (chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH) != null) {
+            chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(16.0);
+            chicken.setHealth(16.0f);
+        }
     }
 
     @Override
     public void onTick(Chicken chicken) {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.level() instanceof ServerLevel serverLevel)) return;
+        teleport(chicken, serverLevel);
+    }
+
+    /**
+     * Perform a safe teleport for the chicken. Public so BossTrait can call it.
+     */
+    public void teleport(Chicken chicken, ServerLevel serverLevel) {
+        if (chicken == null || chicken.isRemoved()) return;
+
+        var random = chicken.getRandom();
 
         // Pre-teleport particles
         if (com.chaoschickens.forge.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverLevel.sendParticles(ParticleTypes.PORTAL,
                     chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                    15, 0.5, 0.5, 0.5, 0.5);
+                    20, 0.3, 0.5, 0.3, 0.5);
+            serverLevel.sendParticles(ParticleTypes.REVERSE_PORTAL,
+                    chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
+                    10, 0.2, 0.3, 0.2, 0.3);
         }
 
-        // Calculate random teleport position
-        var random = chicken.getRandom();
-        double offsetX = (random.nextDouble() - 0.5) * 2.0 * TELEPORT_RANGE;
-        double offsetY = random.nextDouble() * 4.0 - 2.0;
-        double offsetZ = (random.nextDouble() - 0.5) * 2.0 * TELEPORT_RANGE;
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            // Polar coordinates for enderman-like spread
+            double angle = random.nextDouble() * 2.0 * Math.PI;
+            double distance = MIN_RANGE + random.nextDouble() * (MAX_RANGE - MIN_RANGE);
 
-        double newX = chicken.getX() + offsetX;
-        double newY = chicken.getY() + offsetY;
-        double newZ = chicken.getZ() + offsetZ;
+            double newX = chicken.getX() + Math.cos(angle) * distance;
+            double newZ = chicken.getZ() + Math.sin(angle) * distance;
+            double baseY = chicken.getY();
 
-        // Find safe landing position
-        var targetPos = net.minecraft.core.BlockPos.containing(newX, newY, newZ);
-        for (int i = 0; i < 10; i++) {
-            var checkPos = targetPos.below(i);
-            if (!serverLevel.getBlockState(checkPos).isAir()
-                    && serverLevel.getBlockState(checkPos.above()).isAir()
-                    && serverLevel.getBlockState(checkPos.above(2)).isAir()) {
-                newY = checkPos.above().getY();
-                break;
+            // Scan for safe surface (±10 Y)
+            boolean found = false;
+            double newY = baseY;
+
+            for (int dy = 0; dy <= 10; dy++) {
+                for (int sign : new int[]{1, -1}) {
+                    double checkY = baseY + (dy * sign);
+                    if (checkY < serverLevel.getMinBuildHeight() || checkY > serverLevel.getMaxBuildHeight() - 2) continue;
+
+                    BlockPos ground = BlockPos.containing(newX, checkY - 1, newZ);
+                    BlockPos feet = ground.above();
+                    BlockPos head = feet.above();
+
+                    BlockState groundState = serverLevel.getBlockState(ground);
+                    BlockState feetState = serverLevel.getBlockState(feet);
+                    BlockState headState = serverLevel.getBlockState(head);
+
+                    // Ground must be solid, feet + head must be air, no lava/fire/cactus
+                    if (groundState.isSolid()
+                            && feetState.isAir()
+                            && headState.isAir()
+                            && !groundState.is(Blocks.LAVA)
+                            && !groundState.is(Blocks.FIRE)
+                            && !groundState.is(Blocks.SOUL_FIRE)
+                            && !groundState.is(Blocks.CACTUS)
+                            && !groundState.is(Blocks.MAGMA_BLOCK)) {
+                        newY = feet.getY();
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+
+            if (found) {
+                chicken.teleportTo(newX, newY, newZ);
+
+                // Post-teleport effects
+                serverLevel.playSound(null, newX, newY, newZ,
+                        SoundEvents.ENDERMAN_TELEPORT, SoundSource.NEUTRAL, 0.5f, 1.2f);
+
+                if (com.chaoschickens.forge.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+                    serverLevel.sendParticles(ParticleTypes.PORTAL,
+                            newX, newY + 0.5, newZ,
+                            20, 0.3, 0.5, 0.3, 0.5);
+                    serverLevel.sendParticles(ParticleTypes.REVERSE_PORTAL,
+                            newX, newY + 0.5, newZ,
+                            10, 0.2, 0.3, 0.2, 0.3);
+                }
+                return; // Success
             }
         }
-
-        // Teleport
-        chicken.teleportTo(newX, newY, newZ);
-
-        // Sound and particles at new position
-        serverLevel.playSound(null, newX, newY, newZ,
-                SoundEvents.ENDERMAN_TELEPORT, SoundSource.NEUTRAL, 0.5f, 1.0f);
-        if (com.chaoschickens.forge.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
-            serverLevel.sendParticles(ParticleTypes.PORTAL,
-                    newX, newY + 0.5, newZ,
-                    15, 0.5, 0.5, 0.5, 0.5);
-        }
+        // All attempts failed — chicken stays put
     }
 }

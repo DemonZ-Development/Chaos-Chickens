@@ -67,7 +67,7 @@ public class IceTrait extends FabricTrait {
         }
 
         // Spawn snowflake particles
-        if (chicken.age % 15 == 0 && com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+        if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.spawnParticles(
                     ParticleTypes.SNOWFLAKE,
                     chicken.getX(),

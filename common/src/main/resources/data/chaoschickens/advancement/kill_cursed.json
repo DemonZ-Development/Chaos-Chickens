@@ -1,0 +1,25 @@
+{
+  "parent": "chaoschickens:root",
+  "display": {
+    "icon": {
+      "id": "minecraft:fermented_spider_eye"
+    },
+    "title": {
+      "text": "Cursed Plumes",
+      "color": "dark_green",
+      "bold": true
+    },
+    "description": {
+      "text": "Defeat a Cursed Chicken",
+      "color": "gray"
+    },
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "killed": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

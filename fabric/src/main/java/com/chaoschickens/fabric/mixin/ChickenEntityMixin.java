@@ -18,6 +18,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Mixin into ChickenEntity to handle trait persistence via NBT
@@ -34,7 +35,9 @@ public abstract class ChickenEntityMixin {
     @Inject(method = "readCustomDataFromNbt", at = @At("TAIL"))
     private void chaoschickens$readTrait(NbtCompound nbt, CallbackInfo ci) {
         ChickenEntity self = (ChickenEntity) (Object) this;
-        ChaosChickensFabric.addCheckedChicken(self.getUuid());
+        if (nbt.getBoolean("ChaosChickensChecked")) {
+            ChaosChickensFabric.addCheckedChicken(self.getUuid());
+        }
         if (nbt.contains("BossSubTraits", NbtCompound.STRING_TYPE)) {
             String subTraitsStr = nbt.getString("BossSubTraits");
             java.util.List<TraitType> list = new java.util.ArrayList<>();
@@ -88,4 +91,14 @@ public abstract class ChickenEntityMixin {
         java.util.Optional<TraitType> traitType = ChaosChickensFabric.getActiveTrait(self);
         traitType.ifPresent(type -> nbt.putString(ChickenDataUtil.NBT_KEY, type.getKey()));
     }
+
+    @Inject(method = "cannotDespawn", at = @At("HEAD"), cancellable = true)
+    private void chaoschickens$cannotDespawn(CallbackInfoReturnable<Boolean> cir) {
+        ChickenEntity self = (ChickenEntity) (Object) this;
+        java.util.Optional<TraitType> trait = ChaosChickensFabric.getActiveTrait(self);
+        if (trait.isPresent() && trait.get() != TraitType.EMPTY && trait.get() != TraitType.BOSS) {
+            cir.setReturnValue(false); // cannotDespawn = false (means it CAN despawn!)
+        }
+    }
+
 }

@@ -1,0 +1,25 @@
+{
+  "parent": "chaoschickens:root",
+  "display": {
+    "icon": {
+      "id": "minecraft:magma_cream"
+    },
+    "title": {
+      "text": "Too Hot to Handle",
+      "color": "gold",
+      "bold": true
+    },
+    "description": {
+      "text": "Defeat a Fire Chicken",
+      "color": "gray"
+    },
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "killed": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

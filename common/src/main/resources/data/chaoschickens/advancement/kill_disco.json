@@ -1,0 +1,25 @@
+{
+  "parent": "chaoschickens:root",
+  "display": {
+    "icon": {
+      "id": "minecraft:jukebox"
+    },
+    "title": {
+      "text": "Dancing Feet",
+      "color": "light_purple",
+      "bold": true
+    },
+    "description": {
+      "text": "Defeat a Disco Chicken",
+      "color": "gray"
+    },
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "killed": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

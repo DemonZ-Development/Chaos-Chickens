@@ -5,7 +5,8 @@
   "mixins": [
     "ChickenMixin",
     "LivingEntityMixin",
-    "EntityMixin"
+    "EntityMixin",
+    "MobMixin"
   ],
   "client": [],
   "server": [],

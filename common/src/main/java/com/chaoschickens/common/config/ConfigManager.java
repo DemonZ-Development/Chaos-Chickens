@@ -23,9 +23,9 @@ import java.util.Map;
 public class ConfigManager {
 
     private int configVersion = ConfigVersion.CURRENT_VERSION;
-    private double chaosChance = 0.35;          // 35% chance a chicken gets a trait
+    private double chaosChance = 0.85;          // 85% chance a chicken gets a trait
     private boolean enableBossChickens = true;
-    private double bossChance = 0.02;           // 2% chance for a boss chicken
+    private double bossChance = 0.01;           // 1% chance for a boss chicken
     private int bossTraitCount = 3;
     private boolean enableTraitParticles = true;
     private boolean enableTraitMessages = true;
@@ -36,6 +36,7 @@ public class ConfigManager {
     private boolean enableFoliaSupport = true;   // Enable Folia-compatible scheduling
     private boolean bstatsEnabled = true;        // Enable bStats analytics
     private boolean explosiveChickenDamageBlocks = true; // Whether explosive chickens destroy blocks on death
+    private boolean forceAllChickensToHaveTraits = true; // Every single chicken spawned has traits only
     private Map<String, Boolean> traitEnabled = new LinkedHashMap<>();
     private Map<String, Double> traitWeights = new LinkedHashMap<>();
     private Map<String, Object> customValues = new LinkedHashMap<>();
@@ -112,6 +113,10 @@ public class ConfigManager {
 
     public boolean isExplosiveChickenDamageBlocks() {
         return explosiveChickenDamageBlocks;
+    }
+
+    public boolean isForceAllChickensToHaveTraits() {
+        return forceAllChickensToHaveTraits;
     }
 
     public boolean isTraitEnabled(String traitKey) {
@@ -200,6 +205,10 @@ public class ConfigManager {
 
     public void setExplosiveChickenDamageBlocks(boolean explosiveChickenDamageBlocks) {
         this.explosiveChickenDamageBlocks = explosiveChickenDamageBlocks;
+    }
+
+    public void setForceAllChickensToHaveTraits(boolean forceAllChickensToHaveTraits) {
+        this.forceAllChickensToHaveTraits = forceAllChickensToHaveTraits;
     }
 
     public void setTraitEnabled(String traitKey, boolean enabled) {

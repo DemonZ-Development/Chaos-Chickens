@@ -53,6 +53,9 @@ base {
 }
 
 jar {
+    from {
+        project(':common').sourceSets.main.output
+    }
     from("LICENSE") {
         rename { "${it}_${project.archivesBaseName}" }
     }
@@ -68,3 +71,4 @@ publishing {
         mavenLocal()
     }
 }
+

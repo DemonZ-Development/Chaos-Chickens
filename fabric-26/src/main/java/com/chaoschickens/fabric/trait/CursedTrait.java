@@ -50,19 +50,17 @@ public class CursedTrait extends FabricTrait {
         if (!(chicken.level() instanceof ServerLevel serverWorld)) return;
 
         // Only spawn particles when players are nearby
-        if (chicken.tickCount % 20 == 0) {
-            boolean playersNearby = !serverWorld.players().stream()
-                    .filter(player -> !player.isDeadOrDying())
-                    .filter(player -> player.distanceToSqr(chicken) <= PROXIMITY_RANGE * PROXIMITY_RANGE)
-                    .toList()
-                    .isEmpty();
-            if (playersNearby) {
-                serverWorld.sendParticles(
-                        ParticleTypes.WITCH,
-                        chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                        4, 0.3, 0.3, 0.3, 0.02
-                );
-            }
+        boolean playersNearby = !serverWorld.players().stream()
+                .filter(player -> !player.isDeadOrDying())
+                .filter(player -> player.distanceToSqr(chicken) <= PROXIMITY_RANGE * PROXIMITY_RANGE)
+                .toList()
+                .isEmpty();
+        if (playersNearby) {
+            serverWorld.sendParticles(
+                    ParticleTypes.WITCH,
+                    chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
+                    4, 0.3, 0.3, 0.3, 0.02
+            );
         }
     }
 

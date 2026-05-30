@@ -66,6 +66,17 @@ public abstract class FabricTrait extends AbstractTrait {
     }
 
     /**
+     * Called when a chicken with this trait takes damage.
+     *
+     * @param chicken The chicken entity taking damage
+     * @param source  The damage source
+     * @param amount  The amount of damage taken
+     */
+    public void onDamage(ChickenEntity chicken, DamageSource source, float amount) {
+        // Default no-op; override in traits with damage behavior
+    }
+
+    /**
      * Called when a player is near a chicken with this trait.
      * The proximity check is handled by the main tick loop.
      *

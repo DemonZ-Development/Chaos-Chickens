@@ -41,8 +41,8 @@ class BossTraitTest {
         Chicken chicken = world.spawn(new Location(world, 0, 64, 0), Chicken.class);
         trait.onApply(chicken);
         assertNotNull(chicken.getAttribute(Attribute.GENERIC_MAX_HEALTH));
-        assertEquals(12.0, chicken.getAttribute(Attribute.GENERIC_MAX_HEALTH).getBaseValue(), 0.001);
-        assertEquals(12.0, chicken.getHealth(), 0.001);
+        assertEquals(80.0, chicken.getAttribute(Attribute.GENERIC_MAX_HEALTH).getBaseValue(), 0.001);
+        assertEquals(80.0, chicken.getHealth(), 0.001);
     }
 
     @Test

@@ -1,0 +1,25 @@
+{
+  "parent": "chaoschickens:root",
+  "display": {
+    "icon": {
+      "id": "minecraft:rotten_flesh"
+    },
+    "title": {
+      "text": "Feathered Undead",
+      "color": "green",
+      "bold": true
+    },
+    "description": {
+      "text": "Defeat a Zombie Chicken",
+      "color": "gray"
+    },
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "killed": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

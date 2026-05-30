@@ -1,0 +1,25 @@
+{
+  "parent": "chaoschickens:root",
+  "display": {
+    "icon": {
+      "id": "minecraft:tnt"
+    },
+    "title": {
+      "text": "Short Fuse",
+      "color": "red",
+      "bold": true
+    },
+    "description": {
+      "text": "Defeat an Explosive Chicken",
+      "color": "gray"
+    },
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "killed": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

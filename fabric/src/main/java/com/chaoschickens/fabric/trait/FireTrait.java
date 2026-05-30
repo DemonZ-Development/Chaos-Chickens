@@ -10,16 +10,22 @@
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.BlockState;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.passive.ChickenEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.math.BlockPos;
 
 /**
  * Fire chicken trait.
- * Sets nearby players on fire and periodically spawns flame particles.
+ * Sets nearby players on fire, leaves a trail of fire, spawns flame/lava particles,
+ * and is completely immune to fire and lava damage (healing when in lava).
  */
 public class FireTrait extends FabricTrait {
 
@@ -31,7 +37,7 @@ public class FireTrait extends FabricTrait {
 
     public FireTrait() {
         super(TraitType.FIRE, "A fiery chicken that sets nearby players ablaze!", 1.0,
-                true, true, 40);
+                true, true, 10); // Ticks every 10 ticks (0.5s) for responsive behaviors
     }
 
     @Override
@@ -39,6 +45,11 @@ public class FireTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         chicken.setCustomName(Text.literal("Fire Chicken").formatted(Formatting.GOLD));
         chicken.setCustomNameVisible(true);
+
+        // Immediately extinguish and apply fire resistance
+        chicken.extinguish();
+        chicken.setFireTicks(-1);
+        chicken.addStatusEffect(new StatusEffectInstance(StatusEffects.FIRE_RESISTANCE, 200, 0, false, false));
     }
 
     @Override
@@ -46,8 +57,24 @@ public class FireTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.getWorld() instanceof ServerWorld serverWorld)) return;
 
+        // Continuously refresh fire resistance potion effect on every tick call (ticked every 10 ticks, 200 tick duration is a safe refresh)
+        chicken.addStatusEffect(new StatusEffectInstance(StatusEffects.FIRE_RESISTANCE, 200, 0, false, false));
+
+        // Extinguish fire ticks
+        if (chicken.isOnFire() || chicken.getFireTicks() > 0) {
+            chicken.extinguish();
+        }
+
+        // Heal in lava
+        if (chicken.isInLava()) {
+            chicken.extinguish();
+            if (chicken.getHealth() < chicken.getMaxHealth()) {
+                chicken.heal(0.5f);
+            }
+        }
+
         // Spawn flame particles around the chicken (if enabled)
-        if (chicken.age % 10 == 0 && com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+        if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.spawnParticles(
                     ParticleTypes.FLAME,
                     chicken.getX(),
@@ -59,6 +86,27 @@ public class FireTrait extends FabricTrait {
                     0.3, // deltaZ
                     0.02 // speed
             );
+        }
+
+        // Lava swimming particles
+        if (chicken.isInLava() && com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+            serverWorld.spawnParticles(
+                    ParticleTypes.LAVA,
+                    chicken.getX(),
+                    chicken.getY() + 0.3,
+                    chicken.getZ(),
+                    3,
+                    0.2, 0.1, 0.2, 0.0
+            );
+        }
+
+        // Leaves fire while walking!
+        if (chicken.isOnGround()) {
+            BlockPos pos = chicken.getBlockPos();
+            BlockState belowState = serverWorld.getBlockState(pos.down());
+            if (serverWorld.getBlockState(pos).isAir() && !belowState.isAir() && belowState.getFluidState().isEmpty() && !belowState.isOf(Blocks.FIRE)) {
+                serverWorld.setBlockState(pos, Blocks.FIRE.getDefaultState());
+            }
         }
     }
 

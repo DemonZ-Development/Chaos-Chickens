@@ -50,6 +50,13 @@ public class ChickenDeathListener implements Listener {
             trait.onDeath(chicken, event);
         }
 
+        // Grant advancement if killed by player
+        org.bukkit.entity.Player killer = chicken.getKiller();
+        if (killer != null) {
+            org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(),
+                    "advancement grant " + killer.getName() + " only chaoschickens:kill_" + traitType.getKey());
+        }
+
         // Remove from active chickens map
         plugin.removeActiveChicken(chicken.getUniqueId());
     }

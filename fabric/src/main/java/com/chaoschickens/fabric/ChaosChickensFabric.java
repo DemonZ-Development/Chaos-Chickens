@@ -135,7 +135,7 @@ public class ChaosChickensFabric implements ModInitializer {
 
                 // Roll for chaos chance on fresh spawns
                 double chaosChance = ConfigLoader.getConfig().getChaosChance();
-                if (RANDOM.nextDouble() < chaosChance) {
+                if (ConfigLoader.getConfig().isForceAllChickensToHaveTraits() || RANDOM.nextDouble() < chaosChance) {
                     assignTrait(chicken, null);
                 }
             }
@@ -249,15 +249,8 @@ public class ChaosChickensFabric implements ModInitializer {
         appliedChickens.remove(uuid);
     }
 
-    /**
-     * Server tick handler — processes periodic trait behaviors.
-     * Throttled to run every 10 ticks (matching Bukkit behavior) for performance.
-     * Uses per-chicken tick counters for correct interval calculation.
-     */
     private void onServerTick(MinecraftServer server) {
         globalTickCounter++;
-        // Only process every 10 ticks (0.5 seconds) for performance
-        if (globalTickCounter % 10 != 0) return;
 
         for (ServerWorld world : server.getWorlds()) {
             // Get all chicken entities in the world
@@ -290,8 +283,7 @@ public class ChaosChickensFabric implements ModInitializer {
                 // Handle periodic tick using per-chicken counters
                 if (trait.isPeriodic()) {
                     int tickInterval = trait.getTickInterval();
-                    // Task fires every 10 game ticks, so game ticks elapsed = ticks * 10
-                    if ((ticks * 10) % Math.max(1, tickInterval) == 0) {
+                    if (ticks % Math.max(1, tickInterval) == 0) {
                         try {
                             trait.onTick(chicken);
                         } catch (Exception e) {
@@ -300,9 +292,9 @@ public class ChaosChickensFabric implements ModInitializer {
                     }
                 }
 
-                // Handle proximity-based effects (every 2 global cycles = 20 game ticks)
+                // Handle proximity-based effects (every 20 game ticks)
                 double range = trait.getProximityRange();
-                if (range > 0 && ticks % 2 == 0) {
+                if (range > 0 && ticks % 20 == 0) {
                     world.getPlayers().stream()
                             .filter(player -> !player.isDead())
                             .filter(player -> player.squaredDistanceTo(chicken) <= range * range)
@@ -368,6 +360,19 @@ public class ChaosChickensFabric implements ModInitializer {
                     })
                     .executes(context -> spawnChicken(context.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(context, "trait")))
                 )
+            )
+            .then(net.minecraft.server.command.CommandManager.literal("give")
+                .then(net.minecraft.server.command.CommandManager.argument("trait", com.mojang.brigadier.arguments.StringArgumentType.word())
+                    .suggests((context, builder) -> {
+                        for (TraitType type : TraitType.values()) {
+                            if (type != TraitType.EMPTY && type != TraitType.CUSTOM) {
+                                builder.suggest(type.getKey());
+                            }
+                        }
+                        return builder.buildFuture();
+                    })
+                    .executes(context -> giveEgg(context.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(context, "trait")))
+                )
             );
 
         com.mojang.brigadier.builder.LiteralArgumentBuilder<net.minecraft.server.command.ServerCommandSource> ccSpawnBuilder = net.minecraft.server.command.CommandManager.literal("ccspawn")
@@ -410,5 +415,32 @@ public class ChaosChickensFabric implements ModInitializer {
 
         source.sendFeedback(() -> net.minecraft.text.Text.literal("Spawned a chicken with " + traitType.getDisplayName() + " trait!"), true);
         return 1;
+    }
+
+    private static int giveEgg(net.minecraft.server.command.ServerCommandSource source, String traitKey) {
+        TraitType traitType = TraitType.fromKey(traitKey);
+        if (traitType == TraitType.EMPTY && !traitKey.equalsIgnoreCase("empty")) {
+            source.sendError(net.minecraft.text.Text.literal("Unknown trait: " + traitKey));
+            return 0;
+        }
+
+        try {
+            net.minecraft.server.network.ServerPlayerEntity player = source.getPlayer();
+            if (player == null) {
+                source.sendError(net.minecraft.text.Text.literal("This command can only be run by a player!"));
+                return 0;
+            }
+
+            String playerName = player.getName().getString();
+            String cmd = String.format("give %s minecraft:chicken_spawn_egg[minecraft:entity_data={id:\"minecraft:chicken\",chaoschicken_trait:\"%s\"},minecraft:custom_name='\"Chaos Chicken Egg (%s)\"']",
+                    playerName, traitType.getKey(), traitType.getDisplayName());
+            
+            source.getServer().getCommandManager().executeWithPrefix(source, cmd);
+            source.sendFeedback(() -> net.minecraft.text.Text.literal("Gave a Chaos Chicken Egg (" + traitType.getDisplayName() + ") to " + playerName + "!"), true);
+            return 1;
+        } catch (Exception e) {
+            source.sendError(net.minecraft.text.Text.literal("Error giving spawn egg: " + e.getMessage()));
+            return 0;
+        }
     }
 }

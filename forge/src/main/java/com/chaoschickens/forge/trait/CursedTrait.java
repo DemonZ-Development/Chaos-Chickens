@@ -46,13 +46,11 @@ public class CursedTrait extends ForgeTrait {
         if (!(chicken.level() instanceof ServerLevel serverLevel)) return;
 
         // Only spawn particles when players are nearby
-        if (chicken.tickCount % 20 == 0) {
-            boolean playersNearby = !serverLevel.getPlayers(p -> p.isAlive() && p.distanceToSqr(chicken) <= PROXIMITY_RANGE * PROXIMITY_RANGE).isEmpty();
-            if (playersNearby) {
-                serverLevel.sendParticles(ParticleTypes.WITCH,
-                        chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                        4, 0.3, 0.3, 0.3, 0.02);
-            }
+        boolean playersNearby = !serverLevel.getPlayers(p -> p.isAlive() && p.distanceToSqr(chicken) <= PROXIMITY_RANGE * PROXIMITY_RANGE).isEmpty();
+        if (playersNearby) {
+            serverLevel.sendParticles(ParticleTypes.WITCH,
+                    chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
+                    4, 0.3, 0.3, 0.3, 0.02);
         }
     }
 

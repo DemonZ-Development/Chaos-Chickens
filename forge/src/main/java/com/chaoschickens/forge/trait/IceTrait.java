@@ -64,7 +64,7 @@ public class IceTrait extends ForgeTrait {
         }
 
         // Snowflake particles
-        if (chicken.tickCount % 15 == 0 && com.chaoschickens.forge.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+        if (com.chaoschickens.forge.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverLevel.sendParticles(ParticleTypes.SNOWFLAKE,
                     chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
                     4, 0.3, 0.3, 0.3, 0.02);

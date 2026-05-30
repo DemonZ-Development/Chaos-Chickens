@@ -28,19 +28,23 @@ public class ZombieTrait extends ForgeTrait {
 
     private static final double CHASE_RANGE = 8.0;
     private static final double DAMAGE_RANGE = 1.5;
-    private static final double CHASE_SPEED = 0.25;
-    private static final float CONTACT_DAMAGE = 1.0f;
+    private static final double CHASE_SPEED = 0.10;
+    private static final float CONTACT_DAMAGE = 4.0f;
 
     public ZombieTrait() {
         super(TraitType.ZOMBIE, "A hostile chicken that chases players!", 0.7,
-                true, true, 20);
+                true, true, 1);
     }
 
     @Override
     public void onApply(Chicken chicken) {
         if (chicken == null || chicken.isRemoved()) return;
-        chicken.setCustomName(Component.literal("Zombie Chicken").withStyle(ChatFormatting.DARK_RED));
+        chicken.setCustomName(Component.literal("Zombie Chicken").withStyle(ChatFormatting.GREEN));
         chicken.setCustomNameVisible(true);
+        if (chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH) != null) {
+            chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(20.0);
+            chicken.setHealth(20.0f);
+        }
     }
 
     @Override
@@ -65,10 +69,10 @@ public class ZombieTrait extends ForgeTrait {
         }
         if (closest == null) return;
 
-        // Chase the player
-        Vec3 direction = closest.position().subtract(chicken.position()).normalize().scale(CHASE_SPEED);
-        chicken.setDeltaMovement(direction);
-        chicken.hurtMarked = true;
+        // Chase the player using pathfinding
+        if (chicken.tickCount % 5 == 0) {
+            chicken.getNavigation().moveTo(closest, 1.25);
+        }
 
         // Deal damage if close enough
         if (closest.distanceToSqr(chicken) <= DAMAGE_RANGE * DAMAGE_RANGE) {
@@ -76,8 +80,8 @@ public class ZombieTrait extends ForgeTrait {
             closest.playSound(SoundEvents.ZOMBIE_AMBIENT, 0.5f, 1.5f);
         }
 
-        // Angry particles
-        if (chicken.tickCount % 10 == 0) {
+        // Angry particles every 5 ticks to avoid visual clutter
+        if (chicken.tickCount % 5 == 0) {
             serverLevel.sendParticles(ParticleTypes.ANGRY_VILLAGER,
                     chicken.getX(), chicken.getY() + 0.8, chicken.getZ(),
                     2, 0.3, 0.3, 0.3, 0.02);

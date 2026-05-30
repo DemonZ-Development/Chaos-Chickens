@@ -111,7 +111,7 @@ public class ChaosChickensFabric implements ModInitializer {
                 }
 
                 double chaosChance = ConfigLoader.getConfig().getChaosChance();
-                if (RANDOM.nextDouble() < chaosChance) {
+                if (ConfigLoader.getConfig().isForceAllChickensToHaveTraits() || RANDOM.nextDouble() < chaosChance) {
                     assignTrait(chicken, null);
                 }
             }
@@ -187,14 +187,13 @@ public class ChaosChickensFabric implements ModInitializer {
     private void onServerTick(MinecraftServer server) {
         globalTickCounter++;
 
+        // Process block restorations and trait ticking every tick
         for (ScheduledBlockRestore restore : blockRestorations) {
             if (globalTickCounter >= restore.restoreTick) {
                 restore.level.setBlockAndUpdate(restore.pos, restore.originalState);
                 blockRestorations.remove(restore);
             }
         }
-
-        if (globalTickCounter % 10 != 0) return;
 
         for (ServerLevel world : server.getAllLevels()) {
             List<Chicken> chickens = new ArrayList<>();
@@ -222,14 +221,14 @@ public class ChaosChickensFabric implements ModInitializer {
 
                 if (trait.isPeriodic()) {
                     int tickInterval = trait.getTickInterval();
-                    if ((ticks * 10) % Math.max(1, tickInterval) == 0) {
+                    if (ticks % Math.max(1, tickInterval) == 0) {
                         try { trait.onTick(chicken); }
                         catch (Exception e) { LOGGER.error("Error ticking trait {} for chicken {}", traitType.getKey(), chicken.getUUID(), e); }
                     }
                 }
 
                 double range = trait.getProximityRange();
-                if (range > 0 && ticks % 2 == 0) {
+                if (range > 0 && ticks % 20 == 0) {
                     world.players().stream()
                             .filter(player -> !player.isDeadOrDying())
                             .filter(player -> player.distanceToSqr(chicken) <= range * range)
@@ -279,6 +278,19 @@ public class ChaosChickensFabric implements ModInitializer {
                     })
                     .executes(context -> spawnChicken(context.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(context, "trait")))
                 )
+            )
+            .then(net.minecraft.commands.Commands.literal("give")
+                .then(net.minecraft.commands.Commands.argument("trait", com.mojang.brigadier.arguments.StringArgumentType.word())
+                    .suggests((context, builder) -> {
+                        for (TraitType type : TraitType.values()) {
+                            if (type != TraitType.EMPTY && type != TraitType.CUSTOM) {
+                                builder.suggest(type.getKey());
+                            }
+                        }
+                        return builder.buildFuture();
+                    })
+                    .executes(context -> giveEgg(context.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(context, "trait")))
+                )
             );
 
         com.mojang.brigadier.builder.LiteralArgumentBuilder<net.minecraft.commands.CommandSourceStack> ccSpawnBuilder = net.minecraft.commands.Commands.literal("ccspawn")
@@ -321,5 +333,27 @@ public class ChaosChickensFabric implements ModInitializer {
 
         source.sendSuccess(() -> net.minecraft.network.chat.Component.literal("Spawned a chicken with " + traitType.getDisplayName() + " trait!"), true);
         return 1;
+    }
+
+    private static int giveEgg(net.minecraft.commands.CommandSourceStack source, String traitKey) {
+        TraitType traitType = TraitType.fromKey(traitKey);
+        if (traitType == TraitType.EMPTY && !traitKey.equalsIgnoreCase("empty")) {
+            source.sendFailure(net.minecraft.network.chat.Component.literal("Unknown trait: " + traitKey));
+            return 0;
+        }
+
+        try {
+            net.minecraft.server.level.ServerPlayer player = source.getPlayerOrException();
+            String playerName = player.getName().getString();
+            String cmd = String.format("give %s minecraft:chicken_spawn_egg[minecraft:entity_data={id:\"minecraft:chicken\",chaoschicken_trait:\"%s\"},minecraft:custom_name='\"Chaos Chicken Egg (%s)\"']",
+                    playerName, traitType.getKey(), traitType.getDisplayName());
+            
+            source.getServer().getCommands().performPrefixedCommand(source, cmd);
+            source.sendSuccess(() -> net.minecraft.network.chat.Component.literal("Gave a Chaos Chicken Egg (" + traitType.getDisplayName() + ") to " + playerName + "!"), true);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(net.minecraft.network.chat.Component.literal("Error giving spawn egg: " + e.getMessage()));
+            return 0;
+        }
     }
 }

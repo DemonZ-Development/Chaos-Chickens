@@ -10,29 +10,35 @@
 package com.chaoschickens.fabric.trait;
 
 import com.chaoschickens.common.trait.TraitType;
+import net.minecraft.block.BlockState;
+import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.passive.ChickenEntity;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.math.BlockPos;
 
 /**
  * Teleport chicken trait.
- * Randomly teleports to a nearby position every ~10 seconds,
- * similar to an Enderman's teleport behavior.
+ * Randomly teleports to a nearby surface position every ~8 seconds,
+ * similar to an Enderman's teleport behavior. 8-block horizontal range.
+ * Has 16.0 max health (8 hearts) and teleports on damage.
  */
 public class TeleportTrait extends FabricTrait {
 
-    /** Maximum teleport distance in blocks. */
-    private static final double TELEPORT_RANGE = 15.0;
+    /** Maximum teleport distance in blocks (horizontal). */
+    private static final double TELEPORT_RANGE = 8.0;
 
-    /** Minimum teleport distance to avoid teleporting to the same spot. */
-    private static final double MIN_TELEPORT_DISTANCE = 3.0;
+    /** Maximum attempts to find a safe spot. */
+    private static final int MAX_ATTEMPTS = 20;
 
     public TeleportTrait() {
         super(TraitType.TELEPORT, "Randomly teleports around! Hard to catch!", 0.6,
-                false, true, 200); // 200 ticks = 10 seconds
+                false, true, 160); // 160 ticks = 8 seconds
     }
 
     @Override
@@ -40,65 +46,135 @@ public class TeleportTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         chicken.setCustomName(Text.literal("Teleport Chicken").formatted(Formatting.DARK_PURPLE));
         chicken.setCustomNameVisible(true);
+
+        // Give 8 hearts (16.0 HP)
+        var maxHealthAttr = chicken.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
+        if (maxHealthAttr != null) {
+            maxHealthAttr.setBaseValue(16.0);
+            chicken.setHealth(16.0f);
+        }
     }
 
     @Override
     public void onTick(ChickenEntity chicken) {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.getWorld() instanceof ServerWorld serverWorld)) return;
+        teleport(chicken, serverWorld);
+    }
 
-        // Spawn ender particles before teleport
+    @Override
+    public void onDamage(ChickenEntity chicken, DamageSource source, float amount) {
+        if (chicken == null || chicken.isRemoved()) return;
+        if (chicken.getWorld() instanceof ServerWorld serverWorld) {
+            teleport(chicken, serverWorld);
+        }
+    }
+
+    /**
+     * Teleports the chicken to a safe nearby position.
+     */
+    public void teleport(ChickenEntity chicken, ServerWorld serverWorld) {
+        // Spawn departure particles
         if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.spawnParticles(
                     ParticleTypes.PORTAL,
                     chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                    15, 0.5, 0.5, 0.5, 0.5
+                    20, 0.5, 0.5, 0.5, 0.5
             );
         }
 
-        // Calculate random teleport position
         var random = chicken.getRandom();
-        double offsetX = (random.nextDouble() - 0.5) * 2.0 * TELEPORT_RANGE;
-        double offsetY = random.nextDouble() * 4.0 - 2.0; // -2 to +2, both directions
-        double offsetZ = (random.nextDouble() - 0.5) * 2.0 * TELEPORT_RANGE;
 
-        double newX = chicken.getX() + offsetX;
-        double newY = Math.max(chicken.getY() + offsetY - 2.0, serverWorld.getBottomY());
-        double newZ = chicken.getZ() + offsetZ;
+        // Try multiple attempts to find a safe surface spot
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            // Generate random horizontal offset, guaranteed at least 3 blocks away
+            double angle = random.nextDouble() * 2.0 * Math.PI;
+            double dist = 3.0 + random.nextDouble() * (TELEPORT_RANGE - 3.0); // 3 to TELEPORT_RANGE blocks
+            double offsetX = Math.cos(angle) * dist;
+            double offsetZ = Math.sin(angle) * dist;
 
-        // Verify the target chunk is loaded before teleporting
-        net.minecraft.util.math.BlockPos targetPos = net.minecraft.util.math.BlockPos.ofFloored(newX, newY, newZ);
-        if (!serverWorld.isChunkLoaded(targetPos.getX() >> 4, targetPos.getZ() >> 4)) return;
+            double newX = chicken.getX() + offsetX;
+            double newZ = chicken.getZ() + offsetZ;
 
-        // Find a safe landing position (try to land on solid ground)
-        for (int i = 0; i < 10; i++) {
-            net.minecraft.util.math.BlockPos checkPos = targetPos.down(i);
-            if (!serverWorld.getBlockState(checkPos).isAir()
-                    && serverWorld.getBlockState(checkPos.up()).isAir()
-                    && serverWorld.getBlockState(checkPos.up(2)).isAir()) {
-                newY = checkPos.up().getY();
-                break;
+            BlockPos basePos = BlockPos.ofFloored(newX, chicken.getY(), newZ);
+            if (!serverWorld.isChunkLoaded(basePos.getX() >> 4, basePos.getZ() >> 4)) continue;
+
+            // Search for a safe SURFACE position: scan from current Y upward first, then downward
+            BlockPos safePos = findSafeSurface(serverWorld, basePos);
+            if (safePos == null) continue;
+
+            double finalX = newX;
+            double finalY = safePos.getY();
+            double finalZ = newZ;
+
+            // Play departure sound
+            serverWorld.playSound(
+                    null, chicken.getX(), chicken.getY(), chicken.getZ(),
+                    SoundEvents.ENTITY_ENDERMAN_TELEPORT,
+                    SoundCategory.NEUTRAL,
+                    1.0f, 1.2f
+            );
+
+            // Move the chicken
+            chicken.setPosition(finalX, finalY, finalZ);
+
+            // Play arrival sound
+            serverWorld.playSound(
+                    null, finalX, finalY, finalZ,
+                    SoundEvents.ENTITY_ENDERMAN_TELEPORT,
+                    SoundCategory.NEUTRAL,
+                    1.0f, 1.0f
+            );
+
+            // Spawn arrival particles
+            if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+                serverWorld.spawnParticles(
+                        ParticleTypes.PORTAL,
+                        finalX, finalY + 0.5, finalZ,
+                        20, 0.5, 0.5, 0.5, 0.5
+                );
+            }
+            return; // Success!
+        }
+        // If all attempts failed, don't teleport (better than suffocating)
+    }
+
+    /**
+     * Find a safe surface position near the given block position.
+     * Scans Y from +10 to -10 relative to basePos looking for:
+     * solid ground with 2 air blocks above.
+     */
+    private static BlockPos findSafeSurface(ServerWorld world, BlockPos basePos) {
+        // Scan from current Y level upward, then downward
+        for (int dy = 0; dy <= 10; dy++) {
+            // Check upward
+            BlockPos checkUp = basePos.add(0, dy, 0);
+            if (isSafeToStand(world, checkUp)) return checkUp.up();
+
+            // Check downward
+            if (dy > 0) {
+                BlockPos checkDown = basePos.add(0, -dy, 0);
+                if (checkDown.getY() > world.getBottomY() && isSafeToStand(world, checkDown)) return checkDown.up();
             }
         }
+        return null;
+    }
 
-        // Teleport the chicken
-        chicken.setPosition(newX, newY, newZ);
+    /**
+     * Returns true if the block at pos is solid ground and the two blocks above it are air.
+     */
+    private static boolean isSafeToStand(ServerWorld world, BlockPos groundPos) {
+        BlockState groundState = world.getBlockState(groundPos);
+        BlockState aboveState1 = world.getBlockState(groundPos.up());
+        BlockState aboveState2 = world.getBlockState(groundPos.up(2));
 
-        // Play teleport sound
-        serverWorld.playSound(
-                null, newX, newY, newZ,
-                SoundEvents.ENTITY_ENDERMAN_TELEPORT,
-                net.minecraft.sound.SoundCategory.NEUTRAL,
-                0.5f, 1.0f
-        );
-
-        // Spawn ender particles at new position
-        if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
-            serverWorld.spawnParticles(
-                    ParticleTypes.PORTAL,
-                    newX, newY + 0.5, newZ,
-                    15, 0.5, 0.5, 0.5, 0.5
-            );
-        }
+        return !groundState.isAir()
+                && groundState.getFluidState().isEmpty()
+                && !groundState.isOf(net.minecraft.block.Blocks.LAVA)
+                && !groundState.isOf(net.minecraft.block.Blocks.FIRE)
+                && !groundState.isOf(net.minecraft.block.Blocks.SOUL_FIRE)
+                && !groundState.isOf(net.minecraft.block.Blocks.CACTUS)
+                && aboveState1.isAir()
+                && aboveState2.isAir();
     }
 }

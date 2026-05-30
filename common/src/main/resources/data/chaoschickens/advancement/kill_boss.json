@@ -1,0 +1,27 @@
+{
+  "parent": "chaoschickens:root",
+  "display": {
+    "icon": {
+      "id": "minecraft:nether_star"
+    },
+    "title": {
+      "text": "The Golden Cluck",
+      "color": "dark_red",
+      "bold": true,
+      "italic": true
+    },
+    "description": {
+      "text": "Defeat the legendary BOSS Chicken!",
+      "color": "gold"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "killed": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

@@ -24,6 +24,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingDropsEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -88,6 +89,9 @@ public class ChaosChickensForge {
         MinecraftForge.EVENT_BUS.addListener(this::onPlayerInteract);
         MinecraftForge.EVENT_BUS.addListener(this::onServerTick);
         MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
+        MinecraftForge.EVENT_BUS.addListener(this::onLivingHurt);
+        MinecraftForge.EVENT_BUS.addListener(this::onMobFinalizeSpawn);
+        MinecraftForge.EVENT_BUS.addListener(this::onAllowDespawn);
 
         // Check for updates via Modrinth
         String currentVersion = net.minecraftforge.fml.ModList.get()
@@ -123,6 +127,81 @@ public class ChaosChickensForge {
 
     // ========== Event Handlers ==========
 
+    private void onMobFinalizeSpawn(net.minecraftforge.event.entity.living.MobSpawnEvent.FinalizeSpawn event) {
+        if (event.getEntity().level().isClientSide()) return;
+        
+        net.minecraft.world.entity.Mob self = event.getEntity();
+        
+        // If it is night and a monster spawns naturally, 10% chance to replace with a zombie chicken
+        if (!(self instanceof Chicken) && self instanceof net.minecraft.world.entity.monster.Monster && event.getSpawnType() == net.minecraft.world.entity.MobSpawnType.NATURAL) {
+            if (self.level().isNight() && self.getRandom().nextDouble() < 0.10) {
+                Chicken chicken = net.minecraft.world.entity.EntityType.CHICKEN.create(self.level());
+                if (chicken != null) {
+                    chicken.moveTo(self.getX(), self.getY(), self.getZ(), self.getYRot(), self.getXRot());
+                    assignTrait(chicken, TraitType.ZOMBIE);
+                    self.level().addFreshEntity(chicken);
+                    event.setCanceled(true);
+                    self.discard();
+                    return;
+                }
+            }
+        }
+
+        if (!(self instanceof Chicken chicken)) return;
+
+        // If already checked or tracked, skip
+        if (chicken.getPersistentData().getBoolean("ChaosChickensChecked") || activeChickens.containsKey(chicken.getUUID())) {
+            return;
+        }
+
+        // Mark as checked immediately
+        chicken.getPersistentData().putBoolean("ChaosChickensChecked", true);
+
+        // Baby chickens always spawn with traits
+        if (chicken.isBaby()) {
+            assignTrait(chicken, null);
+            return;
+        }
+
+        // Natural spawns at night are always Zombie Chickens
+        if (event.getSpawnType() == net.minecraft.world.entity.MobSpawnType.NATURAL && chicken.level().isNight()) {
+            assignTrait(chicken, TraitType.ZOMBIE);
+            return;
+        }
+
+        // Check for onlyNaturalSpawns config
+        if (ConfigLoader.getConfig().isOnlyNaturalSpawns()) {
+            net.minecraft.world.entity.MobSpawnType spawnType = event.getSpawnType();
+            if (spawnType != net.minecraft.world.entity.MobSpawnType.NATURAL &&
+                spawnType != net.minecraft.world.entity.MobSpawnType.SPAWN_EGG &&
+                spawnType != net.minecraft.world.entity.MobSpawnType.COMMAND) {
+                return;
+            }
+        }
+
+        // Check for boss chicken first
+        if (ConfigLoader.getConfig().isBossChickensEnabled()
+                && RANDOM.nextDouble() < ConfigLoader.getConfig().getBossChance()) {
+            assignTrait(chicken, TraitType.BOSS);
+            return;
+        }
+
+        // Roll for chaos chance
+        double chaosChance = ConfigLoader.getConfig().getChaosChance();
+        if (ConfigLoader.getConfig().isForceAllChickensToHaveTraits() || RANDOM.nextDouble() < chaosChance) {
+            assignTrait(chicken, null);
+        }
+    }
+
+    private void onAllowDespawn(net.minecraftforge.event.entity.living.MobSpawnEvent.AllowDespawn event) {
+        if (event.getEntity() instanceof Chicken chicken) {
+            TraitType trait = ChickenDataUtil.getTrait(chicken);
+            if (trait != TraitType.EMPTY && trait != TraitType.BOSS) {
+                event.setResult(net.minecraftforge.eventbus.api.Event.Result.ALLOW);
+            }
+        }
+    }
+
     private void onEntityJoinLevel(EntityJoinLevelEvent event) {
         if (event.getLevel().isClientSide()) return;
         if (!(event.getEntity() instanceof Chicken chicken)) return;
@@ -154,7 +233,7 @@ public class ChaosChickensForge {
             return;
         }
 
-        // Mark as checked immediately
+        // Fallback for spawns that bypassed MobSpawnEvent.FinalizeSpawn (e.g. thrown eggs)
         chicken.getPersistentData().putBoolean("ChaosChickensChecked", true);
 
         // Baby chickens always spawn with traits
@@ -163,32 +242,12 @@ public class ChaosChickensForge {
             return;
         }
 
+        // If onlyNaturalSpawns is enabled, we skip here because MobSpawnEvent.FinalizeSpawn handles natural/spawn-egg spawns.
         if (ConfigLoader.getConfig().isOnlyNaturalSpawns()) {
             return;
         }
 
-        // Enforce maxChickensPerPlayer limit
-        int max = ConfigLoader.getConfig().getMaxChickensPerPlayer();
-        if (max > -1) {
-            net.minecraft.world.entity.player.Player nearestPlayer = null;
-            double nearestDist = Double.MAX_VALUE;
-            // Get players from the server level
-            for (net.minecraft.world.entity.player.Player player : event.getLevel().players()) {
-                double dist = player.distanceToSqr(chicken.getX(), chicken.getY(), chicken.getZ());
-                if (dist < 64 * 64 && dist < nearestDist) {
-                    nearestDist = dist;
-                    nearestPlayer = player;
-                }
-            }
-            if (nearestPlayer != null) {
-                int count = getActiveChickenCountForPlayer(nearestPlayer);
-                if (count >= max) {
-                    return;
-                }
-            }
-        }
-
-        // Check for boss chicken first (independent roll)
+        // Check for boss chicken first
         if (ConfigLoader.getConfig().isBossChickensEnabled()
                 && RANDOM.nextDouble() < ConfigLoader.getConfig().getBossChance()) {
             assignTrait(chicken, TraitType.BOSS);
@@ -196,7 +255,7 @@ public class ChaosChickensForge {
         }
 
         double chaosChance = ConfigLoader.getConfig().getChaosChance();
-        if (RANDOM.nextDouble() < chaosChance) {
+        if (ConfigLoader.getConfig().isForceAllChickensToHaveTraits() || RANDOM.nextDouble() < chaosChance) {
             assignTrait(chicken, null);
         }
     }
@@ -219,7 +278,69 @@ public class ChaosChickensForge {
         if (trait != null) {
             trait.onDeath(chicken, event.getSource());
         }
+
+        // Grant advancement if killed by player or recently hurt by player
+        Player player = null;
+        if (event.getSource().getEntity() instanceof Player p) {
+            player = p;
+        } else if (chicken.getLastHurtByPlayer() != null) {
+            player = chicken.getLastHurtByPlayer();
+        }
+
+        if (player != null) {
+            net.minecraft.server.MinecraftServer server = chicken.getServer();
+            if (server != null) {
+                server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
+                        "advancement grant " + player.getName().getString() + " only chaoschickens:kill_" + traitType.getKey());
+            }
+        }
+
         removeActiveChicken(chicken.getUUID());
+    }
+
+    /**
+     * Cancel fire/lava/explosion damage for fire chickens and boss chickens.
+     * Fire chickens are immune to all fire and lava damage.
+     * Boss chickens are immune to explosions (their own) and fire if they have a fire sub-trait.
+     */
+    private void onLivingHurt(LivingHurtEvent event) {
+        if (event.getEntity().level().isClientSide()) return;
+        if (!(event.getEntity() instanceof Chicken chicken)) return;
+
+        TraitType traitType = ChickenDataUtil.getTrait(chicken);
+        if (traitType == TraitType.EMPTY) return;
+
+        net.minecraft.world.damagesource.DamageSource source = event.getSource();
+        boolean isFireDamage = source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)
+                || chicken.isInLava()
+                || chicken.isOnFire()
+                || source.type().msgId().contains("lava");
+        boolean isExplosionDamage = source.is(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION);
+
+        if (traitType == TraitType.FIRE) {
+            if (isFireDamage) {
+                event.setCanceled(true);
+                chicken.clearFire();
+                chicken.setRemainingFireTicks(-1);
+                return;
+            }
+        }
+
+        if (traitType == TraitType.BOSS) {
+            // Boss is immune to explosions (its own fireballs, death explosion)
+            if (isExplosionDamage) {
+                event.setCanceled(true);
+                return;
+            }
+            // If boss has fire sub-trait, immune to fire
+            java.util.List<TraitType> subTraits = ChickenDataUtil.getBossSubTraits(chicken);
+            if (subTraits.contains(TraitType.FIRE) && isFireDamage) {
+                event.setCanceled(true);
+                chicken.clearFire();
+                chicken.setRemainingFireTicks(-1);
+                return;
+            }
+        }
     }
 
     private void onLivingDrops(LivingDropsEvent event) {
@@ -257,8 +378,6 @@ public class ChaosChickensForge {
         if (event.phase != TickEvent.Phase.END) return;
 
         globalTickCounter++;
-        // Only process every 10 ticks (0.5 seconds) for performance
-        if (globalTickCounter % 10 != 0) return;
 
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
@@ -299,8 +418,7 @@ public class ChaosChickensForge {
                 // Handle periodic tick using per-chicken counters
                 if (trait.isPeriodic()) {
                     int tickInterval = trait.getTickInterval();
-                    // Task fires every 10 game ticks, so game ticks elapsed = ticks * 10
-                    if ((ticks * 10) % Math.max(10, tickInterval) == 0) {
+                    if (ticks % Math.max(1, tickInterval) == 0) {
                         try {
                             trait.onTick(chicken);
                         } catch (Exception e) {
@@ -309,9 +427,9 @@ public class ChaosChickensForge {
                     }
                 }
 
-                // Handle proximity-based effects (every 2 global cycles = 20 game ticks)
+                // Handle proximity-based effects (every 20 game ticks)
                 double range = trait.getProximityRange();
-                if (range > 0 && ticks % 2 == 0) {
+                if (range > 0 && ticks % 20 == 0) {
                     var players = level.getEntitiesOfClass(
                             Player.class,
                             chicken.getBoundingBox().inflate(range),
@@ -413,6 +531,19 @@ public class ChaosChickensForge {
                     })
                     .executes(context -> spawnChicken(context.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(context, "trait")))
                 )
+            )
+            .then(net.minecraft.commands.Commands.literal("give")
+                .then(net.minecraft.commands.Commands.argument("trait", com.mojang.brigadier.arguments.StringArgumentType.word())
+                    .suggests((context, builder) -> {
+                        for (TraitType type : TraitType.values()) {
+                            if (type != TraitType.EMPTY && type != TraitType.CUSTOM) {
+                                builder.suggest(type.getKey());
+                            }
+                        }
+                        return builder.buildFuture();
+                    })
+                    .executes(context -> giveEgg(context.getSource(), com.mojang.brigadier.arguments.StringArgumentType.getString(context, "trait")))
+                )
             );
 
         com.mojang.brigadier.builder.LiteralArgumentBuilder<net.minecraft.commands.CommandSourceStack> ccSpawnBuilder = net.minecraft.commands.Commands.literal("ccspawn")
@@ -455,5 +586,27 @@ public class ChaosChickensForge {
 
         source.sendSuccess(() -> net.minecraft.network.chat.Component.literal("Spawned a chicken with " + traitType.getDisplayName() + " trait!"), true);
         return 1;
+    }
+
+    private static int giveEgg(net.minecraft.commands.CommandSourceStack source, String traitKey) {
+        TraitType traitType = TraitType.fromKey(traitKey);
+        if (traitType == TraitType.EMPTY && !traitKey.equalsIgnoreCase("empty")) {
+            source.sendFailure(net.minecraft.network.chat.Component.literal("Unknown trait: " + traitKey));
+            return 0;
+        }
+
+        try {
+            net.minecraft.server.level.ServerPlayer player = source.getPlayerOrException();
+            String playerName = player.getName().getString();
+            String cmd = String.format("give %s minecraft:chicken_spawn_egg[minecraft:entity_data={id:\"minecraft:chicken\",chaoschicken_trait:\"%s\"},minecraft:custom_name='\"Chaos Chicken Egg (%s)\"']",
+                    playerName, traitType.getKey(), traitType.getDisplayName());
+            
+            source.getServer().getCommands().performPrefixedCommand(source, cmd);
+            source.sendSuccess(() -> net.minecraft.network.chat.Component.literal("Gave a Chaos Chicken Egg (" + traitType.getDisplayName() + ") to " + playerName + "!"), true);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(net.minecraft.network.chat.Component.literal("Error giving spawn egg: " + e.getMessage()));
+            return 0;
+        }
     }
 }

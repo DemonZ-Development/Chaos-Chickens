@@ -30,11 +30,22 @@ public class BossTrait extends FabricTrait {
 
     private static final java.util.Map<java.util.UUID, net.minecraft.server.level.ServerBossEvent> bossEvents = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /** Track the last teleport game time to prevent boss from teleporting too often. */
+    private static final java.util.Map<java.util.UUID, Long> lastTeleportTime = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Track local tick counter per boss chicken to guarantee correct tick timing. */
+    private static final java.util.Map<java.util.UUID, Integer> bossTicks = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Minimum ticks between boss teleports (10 seconds). */
+    private static final long BOSS_TELEPORT_COOLDOWN = 200L;
+
     public static void clearBossBar(java.util.UUID uuid) {
         net.minecraft.server.level.ServerBossEvent event = bossEvents.remove(uuid);
         if (event != null) {
             event.removeAllPlayers();
         }
+        lastTeleportTime.remove(uuid);
+        bossTicks.remove(uuid);
     }
 
     public BossTrait() {
@@ -88,6 +99,9 @@ public class BossTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved() || chicken.isDeadOrDying()) return;
         if (!(chicken.level() instanceof ServerLevel serverWorld)) return;
 
+        long gameTime = serverWorld.getGameTime();
+        int tick = bossTicks.merge(chicken.getUUID(), 20, Integer::sum);
+
         // --- Boss Bar Management ---
         net.minecraft.server.level.ServerBossEvent bossEvent = bossEvents.computeIfAbsent(chicken.getUUID(), uuid -> {
             net.minecraft.server.level.ServerBossEvent event = new net.minecraft.server.level.ServerBossEvent(
@@ -104,7 +118,7 @@ public class BossTrait extends FabricTrait {
 
         java.util.Set<net.minecraft.server.level.ServerPlayer> currentPlayers = new java.util.HashSet<>();
         for (net.minecraft.server.level.ServerPlayer player : serverWorld.players()) {
-            if (player.distanceToSqr(chicken) <= 16.0 * 16.0) {
+            if (player.distanceToSqr(chicken) <= 32.0 * 32.0) {
                 currentPlayers.add(player);
             }
         }
@@ -125,7 +139,7 @@ public class BossTrait extends FabricTrait {
 
         // --- Epic Animations & Particles ---
         if (ConfigLoader.getConfig().isTraitParticlesEnabled()) {
-            double time = chicken.tickCount * 0.15;
+            double time = tick * 0.15;
             double radius = 1.2;
             double offsetX = Math.cos(time) * radius;
             double offsetZ = Math.sin(time) * radius;
@@ -140,39 +154,38 @@ public class BossTrait extends FabricTrait {
                 2, 0.0, 0.0, 0.0, 0.0
             );
 
-            if (chicken.tickCount % 10 == 0) {
+            if (tick % 10 == 0) {
                 serverWorld.sendParticles(
                     ParticleTypes.SOUL_FIRE_FLAME,
                     chicken.getX(), chicken.getY() + 1.5, chicken.getZ(),
                     5, 0.2, 0.2, 0.2, 0.02
                 );
             }
+
+            // Aura effect
+            if (tick % 5 == 0) {
+                serverWorld.sendParticles(
+                    ParticleTypes.ENCHANT,
+                    chicken.getX(), chicken.getY() + 0.3, chicken.getZ(),
+                    3, 0.5, 0.1, 0.5, 0.01
+                );
+            }
         }
 
         // --- Boss Melodic hum ---
-        if (chicken.tickCount % 40 == 0) {
+        if (tick % 40 == 0) {
             serverWorld.playSound(
                 null,
-                chicken.getX(), chicken.getY(), chicken.getZ(),
+                chicken,
                 net.minecraft.sounds.SoundEvents.NOTE_BLOCK_BASS.value(),
                 net.minecraft.sounds.SoundSource.HOSTILE,
                 1.5f, 0.5f
             );
         }
 
-        // --- Fireball Projectile Attacks ---
-        if (chicken.tickCount % 80 == 0) {
-            Player targetPlayer = null;
-            double nearestDistSq = Double.MAX_VALUE;
-            for (Player player : serverWorld.players()) {
-                if (!player.isCreative() && !player.isSpectator() && !player.isDeadOrDying()) {
-                    double distSq = player.distanceToSqr(chicken);
-                    if (distSq < 16.0 * 16.0 && distSq < nearestDistSq) {
-                        nearestDistSq = distSq;
-                        targetPlayer = player;
-                    }
-                }
-            }
+        // --- Fireball Projectile Attacks (every 4 seconds) ---
+        if (tick % 80 == 0) {
+            Player targetPlayer = findNearestSurvivalPlayer(serverWorld, chicken, 16.0);
 
             if (targetPlayer != null) {
                 net.minecraft.world.phys.Vec3 shootVec = new net.minecraft.world.phys.Vec3(
@@ -198,19 +211,9 @@ public class BossTrait extends FabricTrait {
             }
         }
 
-        // --- Surrounding Block Control (Block Throwing) ---
-        if (chicken.tickCount % 60 == 0) {
-            Player targetPlayer = null;
-            double nearestDistSq = Double.MAX_VALUE;
-            for (Player player : serverWorld.players()) {
-                if (!player.isCreative() && !player.isSpectator() && !player.isDeadOrDying()) {
-                    double distSq = player.distanceToSqr(chicken);
-                    if (distSq < 12.0 * 12.0 && distSq < nearestDistSq) {
-                        nearestDistSq = distSq;
-                        targetPlayer = player;
-                    }
-                }
-            }
+        // --- Surrounding Block Control (Block Throwing every 3 seconds) ---
+        if (tick % 60 == 0) {
+            Player targetPlayer = findNearestSurvivalPlayer(serverWorld, chicken, 12.0);
 
             if (targetPlayer != null) {
                 var random = chicken.getRandom();
@@ -269,11 +272,82 @@ public class BossTrait extends FabricTrait {
             }
         }
 
+        // --- Lightning Strike Attack (every 6 seconds) ---
+        if (tick % 120 == 0) {
+            Player targetPlayer = findNearestSurvivalPlayer(serverWorld, chicken, 16.0);
+            if (targetPlayer != null) {
+                net.minecraft.world.entity.LightningBolt lightning = net.minecraft.world.entity.EntityType.LIGHTNING_BOLT.create(
+                        serverWorld, net.minecraft.world.entity.EntitySpawnReason.MOB_SUMMONED);
+                if (lightning != null) {
+                    lightning.setPos(targetPlayer.getX(), targetPlayer.getY(), targetPlayer.getZ());
+                    serverWorld.addFreshEntity(lightning);
+                }
+            }
+        }
+
+        // --- Summon Zombie Chicken Minions (every 8 seconds) ---
+        if (tick % 160 == 0) {
+            java.util.List<Chicken> nearbyMinions = serverWorld.getEntitiesOfClass(
+                    Chicken.class,
+                    chicken.getBoundingBox().inflate(16.0),
+                    otherChicken -> ChaosChickensFabric.getActiveTrait(otherChicken).orElse(TraitType.EMPTY) == TraitType.ZOMBIE
+            );
+            if (nearbyMinions.size() < 6) {
+                // Summon 2 Zombie Chickens to defend the boss
+                for (int i = 0; i < 2; i++) {
+                    Chicken minion = net.minecraft.world.entity.EntityType.CHICKEN.create(
+                            serverWorld, net.minecraft.world.entity.EntitySpawnReason.MOB_SUMMONED);
+                    if (minion != null) {
+                        minion.setPos(
+                            chicken.getX() + RANDOM.nextDouble() * 3.0 - 1.5,
+                            chicken.getY(),
+                            chicken.getZ() + RANDOM.nextDouble() * 3.0 - 1.5
+                        );
+                        ChaosChickensFabric.assignTrait(minion, TraitType.ZOMBIE);
+                        serverWorld.addFreshEntity(minion);
+                    }
+                }
+                // Witch particles to denote summoning
+                if (ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+                    serverWorld.sendParticles(
+                        ParticleTypes.WITCH,
+                        chicken.getX(), chicken.getY() + 1.0, chicken.getZ(),
+                        20, 1.0, 0.5, 1.0, 0.1
+                    );
+                }
+                serverWorld.playSound(
+                    null,
+                    chicken.getX(), chicken.getY(), chicken.getZ(),
+                    net.minecraft.sounds.SoundEvents.ZOMBIE_VILLAGER_CONVERTED,
+                    net.minecraft.sounds.SoundSource.HOSTILE,
+                    1.5f, 0.8f
+                );
+            }
+        }
+
+        // --- Tick sub-traits, but SKIP TeleportTrait (handle it with cooldown) ---
         java.util.List<TraitType> subTraits = ChickenDataUtil.getBossSubTraits(chicken);
         for (TraitType type : subTraits) {
+            // Skip teleport - boss handles its own teleporting with cooldown
+            if (type == TraitType.TELEPORT) continue;
+
             com.chaoschickens.fabric.trait.FabricTrait trait = ChaosChickensFabric.getTraitInstance(type);
             if (trait != null && trait.isPeriodic()) {
                 trait.onTick(chicken);
+            }
+        }
+
+        // --- Boss-controlled teleport with strict cooldown (every 10 seconds max) ---
+        if (subTraits.contains(TraitType.TELEPORT)) {
+            long lastTp = lastTeleportTime.getOrDefault(chicken.getUUID(), 0L);
+            if (gameTime - lastTp >= BOSS_TELEPORT_COOLDOWN) {
+                if (tick % 200 == 0) { // Only teleport periodically
+                    com.chaoschickens.fabric.trait.FabricTrait tpTrait = ChaosChickensFabric.getTraitInstance(TraitType.TELEPORT);
+                    if (tpTrait instanceof TeleportTrait teleportTrait) {
+                        teleportTrait.teleport(chicken, serverWorld);
+                        lastTeleportTime.put(chicken.getUUID(), gameTime);
+                    }
+                }
             }
         }
     }
@@ -283,11 +357,62 @@ public class BossTrait extends FabricTrait {
         if (chicken == null) return;
         clearBossBar(chicken.getUUID());
 
-        if (ConfigLoader.getConfig().isTraitParticlesEnabled()) {
-            ((ServerLevel) chicken.level()).sendParticles(ParticleTypes.EXPLOSION_EMITTER,
+        if (!(chicken.level() instanceof ServerLevel serverWorld)) return;
+
+        // === MASSIVE DEATH EXPLOSION ===
+        // Create a real explosion that damages blocks and entities, but doesn't hurt the boss itself
+        serverWorld.explode(
+                chicken, // source entity
                 chicken.getX(), chicken.getY(), chicken.getZ(),
-                1, 0.0, 0.0, 0.0, 0.0);
+                8.0f, // power (TNT = 4, Creeper = 3, Charged Creeper = 6, Ender Dragon = 8)
+                true, // create fire!
+                net.minecraft.world.level.Level.ExplosionInteraction.TNT // destroy blocks like TNT
+        );
+
+        // Massive particle effects
+        if (ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+            // Big explosion
+            serverWorld.sendParticles(ParticleTypes.EXPLOSION_EMITTER,
+                chicken.getX(), chicken.getY(), chicken.getZ(),
+                3, 0.0, 0.0, 0.0, 0.0);
+
+            // Soul fire flames ring
+            for (int i = 0; i < 36; i++) {
+                double angle = i * Math.PI * 2.0 / 36.0;
+                double px = chicken.getX() + Math.cos(angle) * 3.0;
+                double pz = chicken.getZ() + Math.sin(angle) * 3.0;
+                serverWorld.sendParticles(ParticleTypes.SOUL_FIRE_FLAME,
+                    px, chicken.getY() + 0.5, pz,
+                    3, 0.1, 0.5, 0.1, 0.05);
+            }
+
+            // Witch sparks
+            serverWorld.sendParticles(ParticleTypes.ENCHANT,
+                chicken.getX(), chicken.getY() + 1.0, chicken.getZ(),
+                30, 1.5, 1.5, 1.5, 0.1);
+
+            // Witch sparks
+            serverWorld.sendParticles(ParticleTypes.WITCH,
+                chicken.getX(), chicken.getY() + 1.0, chicken.getZ(),
+                30, 1.5, 1.5, 1.5, 0.1);
         }
+
+        // Dramatic sound effects
+        serverWorld.playSound(null,
+                chicken.getX(), chicken.getY(), chicken.getZ(),
+                net.minecraft.sounds.SoundEvents.GENERIC_EXPLODE.value(),
+                net.minecraft.sounds.SoundSource.HOSTILE,
+                3.0f, 0.5f);
+
+        serverWorld.playSound(null,
+                chicken.getX(), chicken.getY(), chicken.getZ(),
+                net.minecraft.sounds.SoundEvents.WITHER_DEATH,
+                net.minecraft.sounds.SoundSource.HOSTILE,
+                2.0f, 1.0f);
+
+        // Drop special loot
+        chicken.spawnAtLocation(serverWorld, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.NETHER_STAR, 1));
+        chicken.spawnAtLocation(serverWorld, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 2 + RANDOM.nextInt(3)));
 
         // Trigger death for all sub-traits!
         java.util.List<TraitType> subTraits = ChickenDataUtil.getBossSubTraits(chicken);
@@ -319,5 +444,34 @@ public class BossTrait extends FabricTrait {
                 }
             }
         }
+    }
+
+    @Override
+    public void onDamage(Chicken chicken, net.minecraft.world.damagesource.DamageSource source, float amount) {
+        // Don't teleport on damage - boss stands its ground!
+        // Just play an angry sound
+        if (chicken != null && !chicken.isRemoved() && chicken.level() instanceof ServerLevel serverWorld) {
+            serverWorld.playSound(null,
+                    chicken.getX(), chicken.getY(), chicken.getZ(),
+                    net.minecraft.sounds.SoundEvents.ENDER_DRAGON_GROWL,
+                    net.minecraft.sounds.SoundSource.HOSTILE,
+                    0.5f, 1.5f);
+        }
+    }
+
+    /** Find the nearest player within range (including creative players so testing is extremely cool). */
+    private static Player findNearestSurvivalPlayer(ServerLevel world, Chicken chicken, double range) {
+        Player target = null;
+        double nearestDistSq = range * range;
+        for (Player player : world.players()) {
+            if (!player.isSpectator() && !player.isDeadOrDying()) {
+                double distSq = player.distanceToSqr(chicken);
+                if (distSq < nearestDistSq) {
+                    nearestDistSq = distSq;
+                    target = player;
+                }
+            }
+        }
+        return target;
     }
 }

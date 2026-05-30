@@ -48,6 +48,19 @@ public class ChickenSpawnListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onCreatureSpawn(CreatureSpawnEvent event) {
+        // Replace monster spawns at night with zombie chickens (10% chance)
+        if (!(event.getEntity() instanceof Chicken) && event.getEntity() instanceof org.bukkit.entity.Monster && event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
+            org.bukkit.World world = event.getEntity().getWorld();
+            long time = world.getTime();
+            boolean isNight = (time >= 13000 && time <= 23000);
+            if (isNight && plugin.getRandom().nextDouble() < 0.10) {
+                event.setCancelled(true);
+                Chicken chicken = world.spawn(event.getEntity().getLocation(), Chicken.class);
+                plugin.assignTrait(chicken, TraitType.ZOMBIE);
+                return;
+            }
+        }
+
         // Only handle chicken spawns
         if (!(event.getEntity() instanceof Chicken)) return;
 
@@ -59,6 +72,13 @@ public class ChickenSpawnListener implements Listener {
             if (traitType != TraitType.EMPTY) {
                 plugin.assignTrait(chicken, traitType);
             }
+            return;
+        }
+
+        // Natural spawns at night are always Zombie Chickens
+        boolean isNight = (chicken.getWorld().getTime() >= 13000 && chicken.getWorld().getTime() <= 23000);
+        if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL && isNight) {
+            plugin.assignTrait(chicken, TraitType.ZOMBIE);
             return;
         }
 
@@ -131,7 +151,7 @@ public class ChickenSpawnListener implements Listener {
 
         // Roll for chaos chance
         double chaosChance = plugin.getConfigManager().getChaosChance();
-        if (plugin.getRandom().nextDouble() >= chaosChance) return;
+        if (!plugin.getConfigManager().isForceAllChickensToHaveTraits() && plugin.getRandom().nextDouble() >= chaosChance) return;
 
         // Pick a random trait and apply it
         TraitType traitType = plugin.pickRandomTrait();

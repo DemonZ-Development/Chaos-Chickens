@@ -116,9 +116,9 @@ public final class ConfigLoader {
         root.addProperty(ConfigVersion.CONFIG_VERSION_KEY, ConfigVersion.CURRENT_VERSION);
 
         Map<String, Object> defaults = new java.util.LinkedHashMap<>();
-        defaults.put("chaosChance", 0.50);
+        defaults.put("chaosChance", 0.85);
         defaults.put("enableBossChickens", true);
-        defaults.put("bossChance", 0.02);
+        defaults.put("bossChance", 0.08);
         defaults.put("bossTraitCount", 3);
         defaults.put("enableTraitParticles", true);
         defaults.put("enableTraitMessages", true);
@@ -129,6 +129,7 @@ public final class ConfigLoader {
         defaults.put("enableFoliaSupport", true);
         defaults.put("bstatsEnabled", true);
         defaults.put("explosiveChickenDamageBlocks", true);
+        defaults.put("forceAllChickensToHaveTraits", true);
 
         for (Map.Entry<String, Object> entry : defaults.entrySet()) {
             if (!root.has(entry.getKey())) {
@@ -200,9 +201,9 @@ public final class ConfigLoader {
 
         JsonObject root = new JsonObject();
         root.addProperty(ConfigVersion.CONFIG_VERSION_KEY, ConfigVersion.CURRENT_VERSION);
-        root.addProperty("chaosChance", 0.50);
+        root.addProperty("chaosChance", 0.85);
         root.addProperty("enableBossChickens", true);
-        root.addProperty("bossChance", 0.02);
+        root.addProperty("bossChance", 0.08);
         root.addProperty("bossTraitCount", 3);
         root.addProperty("enableTraitParticles", true);
         root.addProperty("enableTraitMessages", true);
@@ -213,6 +214,7 @@ public final class ConfigLoader {
         root.addProperty("enableFoliaSupport", true);
         root.addProperty("bstatsEnabled", true);
         root.addProperty("explosiveChickenDamageBlocks", true);
+        root.addProperty("forceAllChickensToHaveTraits", true);
 
         JsonObject traits = new JsonObject();
         String[] defaultTraits = {
@@ -254,9 +256,9 @@ public final class ConfigLoader {
 
         configManager.setConfigVersion(getSafeInt(root, ConfigVersion.CONFIG_VERSION_KEY,
                 ConfigVersion.CURRENT_VERSION));
-        configManager.setChaosChance(getSafeDouble(root, "chaosChance", 0.50));
+        configManager.setChaosChance(getSafeDouble(root, "chaosChance", 0.85));
         configManager.setBossChickensEnabled(getSafeBoolean(root, "enableBossChickens", true));
-        configManager.setBossChance(getSafeDouble(root, "bossChance", 0.02));
+        configManager.setBossChance(getSafeDouble(root, "bossChance", 0.08));
         configManager.setBossTraitCount(getSafeInt(root, "bossTraitCount", 3));
         configManager.setTraitParticlesEnabled(getSafeBoolean(root, "enableTraitParticles", true));
         configManager.setTraitMessagesEnabled(getSafeBoolean(root, "enableTraitMessages", true));
@@ -267,6 +269,7 @@ public final class ConfigLoader {
         configManager.setFoliaSupportEnabled(getSafeBoolean(root, "enableFoliaSupport", true));
         configManager.setBstatsEnabled(getSafeBoolean(root, "bstatsEnabled", true));
         configManager.setExplosiveChickenDamageBlocks(getSafeBoolean(root, "explosiveChickenDamageBlocks", true));
+        configManager.setForceAllChickensToHaveTraits(getSafeBoolean(root, "forceAllChickensToHaveTraits", true));
 
         // Parse trait settings
         if (root.has("traits") && root.get("traits").isJsonObject()) {

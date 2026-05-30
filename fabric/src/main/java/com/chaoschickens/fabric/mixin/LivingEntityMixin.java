@@ -21,6 +21,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Mixin into LivingEntity to handle drop modifications and death behaviors for chaos chickens.
@@ -80,10 +81,115 @@ public abstract class LivingEntityMixin {
                     if (trait != null) {
                         trait.onDeath(chicken, source);
                     }
+
+                    // Grant advancement if killed by player or recently hurt by player
+                    net.minecraft.server.network.ServerPlayerEntity player = null;
+                    if (source.getAttacker() instanceof net.minecraft.server.network.ServerPlayerEntity sp) {
+                        player = sp;
+                    } else if (self.getPrimeAdversary() instanceof net.minecraft.server.network.ServerPlayerEntity sp) {
+                        player = sp;
+                    }
+
+                    if (player != null) {
+                        net.minecraft.server.MinecraftServer server = chicken.getServer();
+                        if (server != null) {
+                            server.getCommandManager().executeWithPrefix(server.getCommandSource(),
+                                    "advancement grant " + player.getName().getString() + " only chaoschickens:kill_" + type.getKey());
+                        }
+                    }
                 });
             }
         } catch (Exception e) {
             // No-op, entity cleanup will happen on EntityMixin.remove()
+        }
+    }
+
+    /**
+     * Cancel fire/lava/explosion damage for fire/boss chickens.
+     */
+    @Inject(method = "damage", at = @At("HEAD"), cancellable = true)
+    private void chaoschickens$onHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        try {
+            LivingEntity self = (LivingEntity) (Object) this;
+            if (!(self instanceof ChickenEntity chicken)) return;
+
+            TraitType type = ChaosChickensFabric.getActiveTrait(chicken).orElse(TraitType.EMPTY);
+            if (type == TraitType.EMPTY) return;
+
+            boolean hasFireTrait = (type == TraitType.FIRE);
+            boolean isBoss = (type == TraitType.BOSS);
+
+            if (isBoss) {
+                java.util.List<TraitType> subTraits = com.chaoschickens.fabric.util.ChickenDataUtil.getBossSubTraits(chicken);
+                if (subTraits.contains(TraitType.FIRE)) {
+                    hasFireTrait = true;
+                }
+            }
+
+            if (hasFireTrait) {
+                if (source.isIn(net.minecraft.registry.tag.DamageTypeTags.IS_FIRE)
+                        || chicken.isInLava()
+                        || chicken.isOnFire()
+                        || source.isOf(net.minecraft.entity.damage.DamageTypes.IN_FIRE)
+                        || source.isOf(net.minecraft.entity.damage.DamageTypes.ON_FIRE)
+                        || source.isOf(net.minecraft.entity.damage.DamageTypes.LAVA)
+                        || source.isOf(net.minecraft.entity.damage.DamageTypes.HOT_FLOOR)
+                        || (source.isOf(net.minecraft.entity.damage.DamageTypes.DROWN) && chicken.isInLava())) {
+                    chicken.extinguish();
+                    cir.setReturnValue(false);
+                    return;
+                }
+            }
+
+            if (isBoss) {
+                if (source.isIn(net.minecraft.registry.tag.DamageTypeTags.IS_EXPLOSION)
+                        || source.isIn(net.minecraft.registry.tag.DamageTypeTags.IS_FIRE)
+                        || chicken.isInLava()
+                        || source.isOf(net.minecraft.entity.damage.DamageTypes.LAVA)
+                        || source.isOf(net.minecraft.entity.damage.DamageTypes.IN_FIRE)
+                        || source.isOf(net.minecraft.entity.damage.DamageTypes.ON_FIRE)) {
+                    chicken.extinguish();
+                    cir.setReturnValue(false);
+                    return;
+                }
+            }
+
+            com.chaoschickens.fabric.trait.FabricTrait trait = ChaosChickensFabric.getTraitInstance(type);
+            if (trait != null) {
+                trait.onDamage(chicken, source, amount);
+            }
+        } catch (Exception e) {
+            // Silently handle
+        }
+    }
+
+    /**
+     * Continuously extinguish fire chickens every tick to ensure they do not burn.
+     */
+    @Inject(method = "baseTick", at = @At("TAIL"))
+    private void chaoschickens$onBaseTick(CallbackInfo ci) {
+        try {
+            LivingEntity self = (LivingEntity) (Object) this;
+            if (!(self instanceof ChickenEntity chicken)) return;
+
+            TraitType type = ChaosChickensFabric.getActiveTrait(chicken).orElse(TraitType.EMPTY);
+            if (type == TraitType.EMPTY) return;
+
+            boolean hasFireTrait = (type == TraitType.FIRE);
+            if (type == TraitType.BOSS) {
+                java.util.List<TraitType> subTraits = com.chaoschickens.fabric.util.ChickenDataUtil.getBossSubTraits(chicken);
+                if (subTraits.contains(TraitType.FIRE)) {
+                    hasFireTrait = true;
+                }
+            }
+
+            if (hasFireTrait) {
+                if (chicken.isOnFire() || chicken.getFireTicks() > 0) {
+                    chicken.extinguish();
+                }
+            }
+        } catch (Exception e) {
+            // No-op
         }
     }
 }

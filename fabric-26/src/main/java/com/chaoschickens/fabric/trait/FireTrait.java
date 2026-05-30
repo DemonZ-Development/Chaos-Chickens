@@ -20,6 +20,7 @@ import net.minecraft.ChatFormatting;
 /**
  * Fire chicken trait.
  * Sets nearby players on fire and periodically spawns flame particles.
+ * The fire chicken is IMMUNE to fire and lava - it continuously extinguishes itself.
  */
 public class FireTrait extends FabricTrait {
 
@@ -31,7 +32,7 @@ public class FireTrait extends FabricTrait {
 
     public FireTrait() {
         super(TraitType.FIRE, "A fiery chicken that sets nearby players ablaze!", 1.0,
-                true, true, 40);
+                true, true, 10); // Tick every server cycle to keep fire immunity active
     }
 
     @Override
@@ -39,6 +40,11 @@ public class FireTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         chicken.setCustomName(Component.literal("Fire Chicken").withStyle(ChatFormatting.GOLD));
         chicken.setCustomNameVisible(true);
+
+        // Make the chicken fire-immune by clearing any fire ticks
+        chicken.clearFire();
+        chicken.setRemainingFireTicks(-1);
+        chicken.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 200, 0, false, false));
     }
 
     @Override
@@ -46,8 +52,28 @@ public class FireTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         if (!(chicken.level() instanceof ServerLevel serverWorld)) return;
 
+        // Refresh fire resistance on every tick call (ticked every 10 ticks, 200 tick duration is a safe refresh)
+        chicken.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 200, 0, false, false));
+
+        // === CRITICAL: Continuously suppress fire/lava damage ===
+        // Clear fire ticks every tick so lava/fire never kills the chicken
+        if (chicken.isOnFire() || chicken.getRemainingFireTicks() > 0) {
+            chicken.clearFire();
+            chicken.setRemainingFireTicks(-1);
+        }
+
+        // If in lava, heal the chicken slowly (fire chickens THRIVE in lava)
+        if (chicken.isInLava()) {
+            chicken.clearFire();
+            chicken.setRemainingFireTicks(-1);
+            // Heal 0.5 hearts per tick when in lava
+            if (chicken.getHealth() < chicken.getMaxHealth()) {
+                chicken.heal(0.5f);
+            }
+        }
+
         // Spawn flame particles around the chicken (if enabled)
-        if (chicken.tickCount % 10 == 0 && com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+        if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.sendParticles(
                     ParticleTypes.FLAME,
                     chicken.getX(),
@@ -59,6 +85,27 @@ public class FireTrait extends FabricTrait {
                     0.3, // deltaZ
                     0.02 // speed
             );
+        }
+
+        // Lava swimming particles
+        if (chicken.isInLava() && com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+            serverWorld.sendParticles(
+                    ParticleTypes.LAVA,
+                    chicken.getX(),
+                    chicken.getY() + 0.3,
+                    chicken.getZ(),
+                    3,
+                    0.2, 0.1, 0.2, 0.0
+            );
+        }
+
+        // Leaves fire while walking!
+        if (chicken.onGround()) {
+            net.minecraft.core.BlockPos pos = chicken.blockPosition();
+            net.minecraft.world.level.block.state.BlockState belowState = serverWorld.getBlockState(pos.below());
+            if (serverWorld.getBlockState(pos).isAir() && belowState.isSolid() && !belowState.is(net.minecraft.world.level.block.Blocks.FIRE)) {
+                serverWorld.setBlockAndUpdate(pos, net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState());
+            }
         }
     }
 

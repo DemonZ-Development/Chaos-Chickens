@@ -24,19 +24,23 @@ public class ZombieTrait extends BukkitTrait {
 
     private static final double CHASE_RANGE = 8.0;
     private static final double DAMAGE_RANGE = 1.5;
-    private static final double DAMAGE_AMOUNT = 1.0;
-    private static final double CHASE_SPEED = 0.25;
+    private static final double DAMAGE_AMOUNT = 4.0;
+    private static final double CHASE_SPEED = 0.10;
 
     public ZombieTrait() {
         super(TraitType.ZOMBIE, "A hostile chicken that chases and attacks players!", 0.7,
-                true, true, 20);
+                true, true, 1);
     }
 
     @Override
     public void onApply(Chicken chicken) {
         if (chicken == null || chicken.isDead()) return;
-        chicken.setCustomName(ChatColor.DARK_RED + "Zombie Chicken");
+        chicken.setCustomName(ChatColor.GREEN + "Zombie Chicken");
         chicken.setCustomNameVisible(true);
+        if (chicken.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH) != null) {
+            chicken.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).setBaseValue(20.0);
+            chicken.setHealth(20.0);
+        }
     }
 
     @Override
@@ -59,13 +63,34 @@ public class ZombieTrait extends BukkitTrait {
         }
 
         if (nearestPlayer != null) {
-            // Chase: set velocity toward the player
-            Vector direction = nearestPlayer.getLocation().toVector()
-                    .subtract(chicken.getLocation().toVector())
-                    .normalize()
-                    .multiply(CHASE_SPEED);
-            direction.setY(0); // Keep it on the ground
-            chicken.setVelocity(direction);
+            // Chase the player using pathfinding
+            boolean navigated = false;
+            if (chicken.getLocation().getChunk().isLoaded() && nearestPlayer.getLocation().getChunk().isLoaded()) {
+                try {
+                    java.lang.reflect.Method getPathfinder = chicken.getClass().getMethod("getPathfinder");
+                    Object pathfinder = getPathfinder.invoke(chicken);
+                    java.lang.reflect.Method moveTo = pathfinder.getClass().getMethod("moveTo", org.bukkit.entity.LivingEntity.class, double.class);
+                    moveTo.invoke(pathfinder, nearestPlayer, 1.25);
+                    navigated = true;
+                } catch (Exception e) {
+                    // Fallback
+                }
+            }
+
+            if (!navigated && chicken.getNoDamageTicks() < 10) {
+                Vector chickenPos = chicken.getLocation().toVector();
+                Vector targetPos = nearestPlayer.getLocation().toVector();
+                Vector diff = new Vector(targetPos.getX() - chickenPos.getX(), 0.0, targetPos.getZ() - chickenPos.getZ());
+                if (diff.lengthSquared() > 0) {
+                    Vector direction = diff.normalize().multiply(CHASE_SPEED);
+                    double ySpeed = chicken.getVelocity().getY();
+                    if (nearestPlayer.getLocation().getY() > chicken.getLocation().getY() + 0.5 && chicken.isOnGround()) {
+                        ySpeed = 0.42;
+                    }
+                    direction.setY(ySpeed);
+                    chicken.setVelocity(direction);
+                }
+            }
 
             // Damage on contact
             if (nearestDistance <= DAMAGE_RANGE) {

@@ -14,6 +14,7 @@ package com.chaoschickens.bukkit;
 import com.chaoschickens.api.ChaosChickensAPI;
 import com.chaoschickens.bukkit.command.ChaosCommand;
 import com.chaoschickens.bukkit.listener.ChickenDeathListener;
+import com.chaoschickens.bukkit.listener.ChickenDamageListener;
 import com.chaoschickens.bukkit.listener.ChickenInteractListener;
 import com.chaoschickens.bukkit.listener.ChickenSpawnListener;
 import com.chaoschickens.bukkit.trait.*;
@@ -252,6 +253,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         configManager.setFoliaSupportEnabled(config.getBoolean("enable-folia-support", true));
         configManager.setBstatsEnabled(config.getBoolean("bstats-enabled", true));
         configManager.setExplosiveChickenDamageBlocks(config.getBoolean("explosive-chicken-damage-blocks", true));
+        configManager.setForceAllChickensToHaveTraits(config.getBoolean("force-all-chickens-to-have-traits", true));
 
         // Load trait-specific config
         if (config.isConfigurationSection("traits")) {
@@ -347,6 +349,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         getServer().getPluginManager().registerEvents(new ChickenSpawnListener(this), this);
         getServer().getPluginManager().registerEvents(new ChickenDeathListener(this), this);
         getServer().getPluginManager().registerEvents(new ChickenInteractListener(this), this);
+        getServer().getPluginManager().registerEvents(new ChickenDamageListener(this), this);
     }
 
     /**
@@ -386,7 +389,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
             public void run() {
                 tickAllChickens();
             }
-        }.runTaskTimer(this, 20L, 10L);
+        }.runTaskTimer(this, 20L, 1L);
     }
 
     /**
@@ -417,7 +420,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
                 tickAllChickens();
             };
 
-            runAtFixedRate.invoke(globalScheduler, this, taskConsumer, 20L, 10L);
+            runAtFixedRate.invoke(globalScheduler, this, taskConsumer, 20L, 1L);
             foliaTaskRunning = true;
             getLogger().info("Folia GlobalRegionScheduler task started successfully.");
         } catch (Exception e) {
@@ -489,12 +492,11 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         BukkitTrait trait = traitMap.get(traitType);
         if (trait == null) return;
 
-        // Handle periodic ticking (Bug #2 fix)
+        // Handle periodic ticking
         if (trait.isPeriodic()) {
             int tickInterval = trait.getTickInterval();
-            // Convert: task fires every 10 game ticks, so game ticks elapsed = ticks * 10
             // Fire when game ticks elapsed is a multiple of tickInterval
-            if ((ticks * 10) % Math.max(1, tickInterval) == 0) {
+            if (ticks % Math.max(1, tickInterval) == 0) {
                 try {
                     trait.onTick(chicken);
                 } catch (Exception e) {
@@ -506,7 +508,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
 
         // Handle proximity-based effects (every 20 ticks / 2 global cycles)
         double proximityRange = trait.getProximityRange();
-        if (proximityRange > 0 && ticks % 2 == 0) {
+        if (proximityRange > 0 && ticks % 20 == 0) {
             for (Entity nearbyEntity : chicken.getNearbyEntities(
                     proximityRange, proximityRange, proximityRange)) {
                 if (nearbyEntity instanceof Player) {
@@ -584,6 +586,11 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
             }
         }
 
+        // Allow despawning when player is far away for non-boss trait chickens
+        if (traitType != TraitType.BOSS) {
+            chicken.setRemoveWhenFarAway(true);
+        }
+
         // Optionally announce the trait
         if (configManager.isAnnounceTraitOnSpawn() && configManager.isTraitMessagesEnabled()) {
             String message = org.bukkit.ChatColor.GOLD + "[ChaosChickens] " +
@@ -621,6 +628,10 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         activeChickens.put(chicken.getUniqueId(), traitType);
         loadedChickens.put(chicken.getUniqueId(), chicken);
         chickenTickCounters.putIfAbsent(chicken.getUniqueId(), 0);
+
+        if (traitType != TraitType.BOSS) {
+            chicken.setRemoveWhenFarAway(true);
+        }
 
         // Re-apply trait effects (e.g., Boss health boost) region-safely
         BukkitTrait trait = traitMap.get(traitType);

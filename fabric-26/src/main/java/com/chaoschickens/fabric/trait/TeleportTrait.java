@@ -20,20 +20,20 @@ import net.minecraft.ChatFormatting;
 
 /**
  * Teleport chicken trait.
- * Randomly teleports to a nearby position every ~10 seconds,
- * similar to an Enderman's teleport behavior.
+ * Randomly teleports to a nearby surface position every ~8 seconds,
+ * similar to an Enderman's teleport behavior. 8-block horizontal range.
  */
 public class TeleportTrait extends FabricTrait {
 
-    /** Maximum teleport distance in blocks. */
-    private static final double TELEPORT_RANGE = 6.0;
+    /** Maximum teleport distance in blocks (horizontal). */
+    private static final double TELEPORT_RANGE = 8.0;
 
-    /** Minimum teleport distance to avoid teleporting to the same spot. */
-    private static final double MIN_TELEPORT_DISTANCE = 2.0;
+    /** Maximum attempts to find a safe spot. */
+    private static final int MAX_ATTEMPTS = 20;
 
     public TeleportTrait() {
         super(TraitType.TELEPORT, "Randomly teleports around! Hard to catch!", 0.6,
-                false, true, 200); // 200 ticks = 10 seconds
+                false, true, 160); // 160 ticks = 8 seconds
     }
 
     @Override
@@ -41,6 +41,10 @@ public class TeleportTrait extends FabricTrait {
         if (chicken == null || chicken.isRemoved()) return;
         chicken.setCustomName(Component.literal("Teleport Chicken").withStyle(ChatFormatting.DARK_PURPLE));
         chicken.setCustomNameVisible(true);
+        if (chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH) != null) {
+            chicken.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(16.0);
+            chicken.setHealth(16.0f);
+        }
     }
 
     @Override
@@ -59,64 +63,110 @@ public class TeleportTrait extends FabricTrait {
     }
 
     public void teleport(Chicken chicken, ServerLevel serverWorld) {
+        // Spawn departure particles
         if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
             serverWorld.sendParticles(
                     ParticleTypes.PORTAL,
                     chicken.getX(), chicken.getY() + 0.5, chicken.getZ(),
-                    15, 0.5, 0.5, 0.5, 0.5
+                    20, 0.5, 0.5, 0.5, 0.5
             );
         }
 
         var random = chicken.getRandom();
-        double offsetX = (random.nextDouble() - 0.5) * 2.0 * TELEPORT_RANGE;
-        double offsetY = random.nextDouble() * 4.0 - 2.0;
-        double offsetZ = (random.nextDouble() - 0.5) * 2.0 * TELEPORT_RANGE;
 
-        double newX = chicken.getX() + offsetX;
-        double newY = Math.max(chicken.getY() + offsetY - 2.0, serverWorld.getMinY());
-        double newZ = chicken.getZ() + offsetZ;
+        // Try multiple attempts to find a safe surface spot
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            // Generate random horizontal offset, guaranteed at least 3 blocks away
+            double angle = random.nextDouble() * 2.0 * Math.PI;
+            double dist = 3.0 + random.nextDouble() * (TELEPORT_RANGE - 3.0); // 3 to TELEPORT_RANGE blocks
+            double offsetX = Math.cos(angle) * dist;
+            double offsetZ = Math.sin(angle) * dist;
 
-        net.minecraft.core.BlockPos targetPos = net.minecraft.core.BlockPos.containing(newX, newY, newZ);
-        if (!serverWorld.hasChunkAt(targetPos)) return;
+            double newX = chicken.getX() + offsetX;
+            double newZ = chicken.getZ() + offsetZ;
 
-        boolean foundSafe = false;
-        net.minecraft.core.BlockPos checkCenter = net.minecraft.core.BlockPos.containing(newX, newY, newZ);
-        for (int dy = 6; dy >= -6; dy--) {
-            net.minecraft.core.BlockPos checkPos = checkCenter.above(dy);
-            net.minecraft.world.level.block.state.BlockState state = serverWorld.getBlockState(checkPos);
-            if (!state.isAir() && state.getFluidState().isEmpty()
-                    && serverWorld.getBlockState(checkPos.above()).isAir()
-                    && serverWorld.getBlockState(checkPos.above(2)).isAir()) {
-                newY = checkPos.above().getY();
-                foundSafe = true;
-                break;
+            net.minecraft.core.BlockPos basePos = net.minecraft.core.BlockPos.containing(newX, chicken.getY(), newZ);
+            if (!serverWorld.hasChunkAt(basePos)) continue;
+
+            // Search for a safe SURFACE position: scan from current Y upward first, then downward
+            // This ensures the chicken always lands on solid ground, not inside blocks
+            net.minecraft.core.BlockPos safePos = findSafeSurface(serverWorld, basePos);
+            if (safePos == null) continue;
+
+            double finalX = newX;
+            double finalY = safePos.getY();
+            double finalZ = newZ;
+
+            // Play departure sound
+            serverWorld.playSound(
+                    null, chicken.getX(), chicken.getY(), chicken.getZ(),
+                    SoundEvents.ENDERMAN_TELEPORT,
+                    net.minecraft.sounds.SoundSource.NEUTRAL,
+                    1.0f, 1.2f
+            );
+
+            // Move the chicken
+            chicken.teleportTo(finalX, finalY, finalZ);
+
+            // Play arrival sound
+            serverWorld.playSound(
+                    null, finalX, finalY, finalZ,
+                    SoundEvents.ENDERMAN_TELEPORT,
+                    net.minecraft.sounds.SoundSource.NEUTRAL,
+                    1.0f, 1.0f
+            );
+
+            // Spawn arrival particles
+            if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
+                serverWorld.sendParticles(
+                        ParticleTypes.PORTAL,
+                        finalX, finalY + 0.5, finalZ,
+                        20, 0.5, 0.5, 0.5, 0.5
+                );
+                serverWorld.sendParticles(
+                        ParticleTypes.REVERSE_PORTAL,
+                        finalX, finalY + 0.5, finalZ,
+                        10, 0.3, 0.3, 0.3, 0.2
+                );
+            }
+            return; // Success!
+        }
+        // If all attempts failed, don't teleport (better than suffocating)
+    }
+
+    /**
+     * Find a safe surface position near the given block position.
+     * Scans Y from +10 to -10 relative to basePos looking for:
+     * solid ground with 2 air blocks above.
+     */
+    private static net.minecraft.core.BlockPos findSafeSurface(ServerLevel world, net.minecraft.core.BlockPos basePos) {
+        // Scan from current Y level upward, then downward
+        for (int dy = 0; dy <= 10; dy++) {
+            // Check upward
+            net.minecraft.core.BlockPos checkUp = basePos.offset(0, dy, 0);
+            if (isSafeToStand(world, checkUp)) return checkUp.above();
+
+            // Check downward
+            if (dy > 0) {
+                net.minecraft.core.BlockPos checkDown = basePos.offset(0, -dy, 0);
+                if (checkDown.getY() > world.getMinY() && isSafeToStand(world, checkDown)) return checkDown.above();
             }
         }
+        return null;
+    }
 
-        if (!foundSafe) return;
+    /**
+     * Returns true if the block at pos is solid ground and the two blocks above it are air/passable.
+     */
+    private static boolean isSafeToStand(ServerLevel world, net.minecraft.core.BlockPos groundPos) {
+        var groundState = world.getBlockState(groundPos);
+        var aboveState1 = world.getBlockState(groundPos.above());
+        var aboveState2 = world.getBlockState(groundPos.above(2));
 
-        serverWorld.playSound(
-                null, chicken.getX(), chicken.getY(), chicken.getZ(),
-                SoundEvents.ENDERMAN_TELEPORT,
-                net.minecraft.sounds.SoundSource.NEUTRAL,
-                1.0f, 1.0f
-        );
-
-        chicken.setPos(newX, newY, newZ);
-
-        serverWorld.playSound(
-                null, newX, newY, newZ,
-                SoundEvents.ENDERMAN_TELEPORT,
-                net.minecraft.sounds.SoundSource.NEUTRAL,
-                1.0f, 1.0f
-        );
-
-        if (com.chaoschickens.fabric.util.ConfigLoader.getConfig().isTraitParticlesEnabled()) {
-            serverWorld.sendParticles(
-                    ParticleTypes.PORTAL,
-                    newX, newY + 0.5, newZ,
-                    15, 0.5, 0.5, 0.5, 0.5
-            );
-        }
+        return !groundState.isAir()
+                && groundState.getFluidState().isEmpty()
+                && !groundState.is(net.minecraft.world.level.block.Blocks.LAVA)
+                && aboveState1.isAir()
+                && aboveState2.isAir();
     }
 }
