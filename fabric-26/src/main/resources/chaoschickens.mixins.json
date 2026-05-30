@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "com.chaoschickens.fabric.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "ChickenMixin",
+    "LivingEntityMixin",
+    "EntityMixin"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
