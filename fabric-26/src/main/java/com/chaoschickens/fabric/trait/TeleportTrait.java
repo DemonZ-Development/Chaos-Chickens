@@ -79,15 +79,21 @@ public class TeleportTrait extends FabricTrait {
         net.minecraft.core.BlockPos targetPos = net.minecraft.core.BlockPos.containing(newX, newY, newZ);
         if (!serverWorld.hasChunkAt(targetPos)) return;
 
-        for (int i = 0; i < 10; i++) {
-            net.minecraft.core.BlockPos checkPos = targetPos.below(i);
-            if (!serverWorld.getBlockState(checkPos).isAir()
+        boolean foundSafe = false;
+        net.minecraft.core.BlockPos checkCenter = net.minecraft.core.BlockPos.containing(newX, newY, newZ);
+        for (int dy = 6; dy >= -6; dy--) {
+            net.minecraft.core.BlockPos checkPos = checkCenter.above(dy);
+            net.minecraft.world.level.block.state.BlockState state = serverWorld.getBlockState(checkPos);
+            if (!state.isAir() && state.getFluidState().isEmpty()
                     && serverWorld.getBlockState(checkPos.above()).isAir()
                     && serverWorld.getBlockState(checkPos.above(2)).isAir()) {
                 newY = checkPos.above().getY();
+                foundSafe = true;
                 break;
             }
         }
+
+        if (!foundSafe) return;
 
         serverWorld.playSound(
                 null, chicken.getX(), chicken.getY(), chicken.getZ(),

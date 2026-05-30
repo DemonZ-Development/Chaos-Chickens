@@ -45,14 +45,23 @@ public abstract class LivingEntityMixin {
             LivingEntity self = (LivingEntity) (Object) this;
             if (self instanceof Chicken chicken) {
                 TraitType type = ChaosChickensFabric.getActiveTrait(chicken).orElse(TraitType.EMPTY);
-                if (type == TraitType.FIRE) {
-                    if (source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)) {
+                
+                boolean hasFireTrait = (type == TraitType.FIRE);
+                if (type == TraitType.BOSS) {
+                    java.util.List<TraitType> subTraits = com.chaoschickens.fabric.util.ChickenDataUtil.getBossSubTraits(chicken);
+                    if (subTraits.contains(TraitType.FIRE)) {
+                        hasFireTrait = true;
+                    }
+                }
+                if (hasFireTrait) {
+                    if (chicken.isInLava() || source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)) {
                         cir.setReturnValue(false);
                         return;
                     }
-                } else if (type == TraitType.BOSS) {
-                    java.util.List<TraitType> subTraits = com.chaoschickens.fabric.util.ChickenDataUtil.getBossSubTraits(chicken);
-                    if (subTraits.contains(TraitType.FIRE) && source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)) {
+                }
+
+                if (type == TraitType.BOSS) {
+                    if (chicken.isInLava() || source.is(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION) || source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)) {
                         cir.setReturnValue(false);
                         return;
                     }

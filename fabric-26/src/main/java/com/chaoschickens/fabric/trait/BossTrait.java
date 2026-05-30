@@ -160,6 +160,44 @@ public class BossTrait extends FabricTrait {
             );
         }
 
+        // --- Fireball Projectile Attacks ---
+        if (chicken.tickCount % 80 == 0) {
+            Player targetPlayer = null;
+            double nearestDistSq = Double.MAX_VALUE;
+            for (Player player : serverWorld.players()) {
+                if (!player.isCreative() && !player.isSpectator() && !player.isDeadOrDying()) {
+                    double distSq = player.distanceToSqr(chicken);
+                    if (distSq < 16.0 * 16.0 && distSq < nearestDistSq) {
+                        nearestDistSq = distSq;
+                        targetPlayer = player;
+                    }
+                }
+            }
+
+            if (targetPlayer != null) {
+                net.minecraft.world.phys.Vec3 shootVec = new net.minecraft.world.phys.Vec3(
+                        targetPlayer.getX() - chicken.getX(),
+                        (targetPlayer.getY() + 0.8) - chicken.getY(0.5),
+                        targetPlayer.getZ() - chicken.getZ()
+                );
+                net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball fireball = new net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball(
+                        serverWorld,
+                        chicken,
+                        shootVec
+                );
+                fireball.setPos(chicken.getX(), chicken.getY(0.8), chicken.getZ());
+                serverWorld.addFreshEntity(fireball);
+
+                serverWorld.playSound(
+                        null,
+                        chicken.getX(), chicken.getY(), chicken.getZ(),
+                        net.minecraft.sounds.SoundEvents.GHAST_SHOOT,
+                        net.minecraft.sounds.SoundSource.HOSTILE,
+                        1.5f, 1.0f
+                );
+            }
+        }
+
         // --- Surrounding Block Control (Block Throwing) ---
         if (chicken.tickCount % 60 == 0) {
             Player targetPlayer = null;
