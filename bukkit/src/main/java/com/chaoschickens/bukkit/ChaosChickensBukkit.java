@@ -33,6 +33,10 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import java.io.File;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Main plugin class for ChaosChickens on Bukkit/Spigot/Paper/Purpur/Folia.
@@ -71,6 +75,9 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
 
         // Load configuration
         loadConfig();
+
+        // Setup advancement datapack
+        setupAdvancementDatapack();
 
         // Set plugin reference in BukkitTrait base class for shared Random access
         BukkitTrait.setPlugin(this);
@@ -531,12 +538,16 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
     private void scanExistingChickens() {
         for (org.bukkit.World world : Bukkit.getWorlds()) {
             for (Entity entity : world.getEntities()) {
-                if (entity instanceof Chicken) {
-                    Chicken chicken = (Chicken) entity;
+                if (entity instanceof Chicken chicken) {
                     if (ChickenDataUtil.hasTrait(this, chicken)) {
                         TraitType traitType = ChickenDataUtil.getTrait(this, chicken);
                         if (traitType != TraitType.EMPTY) {
                             registerLoadedChicken(chicken, traitType);
+                        }
+                    } else if (configManager.isForceAllChickensToHaveTraits()) {
+                        TraitType traitType = pickRandomTrait();
+                        if (traitType != TraitType.EMPTY) {
+                            assignTrait(chicken, traitType);
                         }
                     }
                 }
@@ -711,5 +722,61 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
      */
     public ConfigManager getConfigManager() {
         return configManager;
+    }
+
+    private void setupAdvancementDatapack() {
+        try {
+            if (Bukkit.getWorlds().isEmpty()) return;
+            File worldDir = Bukkit.getWorlds().get(0).getWorldFolder();
+            File datapackDir = new File(worldDir, "datapacks/chaoschickens");
+            
+            boolean newlyCreated = false;
+            if (!datapackDir.exists()) {
+                datapackDir.mkdirs();
+                newlyCreated = true;
+            }
+            
+            // Write pack.mcmeta
+            File mcmeta = new File(datapackDir, "pack.mcmeta");
+            if (!mcmeta.exists()) {
+                String mcmetaContent = "{\n" +
+                        "  \"pack\": {\n" +
+                        "    \"pack_format\": 15,\n" +
+                        "    \"description\": \"Chaos Chickens Advancements Datapack\"\n" +
+                        "  }\n" +
+                        "}";
+                Files.writeString(mcmeta.toPath(), mcmetaContent);
+                newlyCreated = true;
+            }
+            
+            // Create advancement directory
+            File advancementDir = new File(datapackDir, "data/chaoschickens/advancement");
+            if (!advancementDir.exists()) {
+                advancementDir.mkdirs();
+                newlyCreated = true;
+            }
+            
+            // List of advancement JSON files
+            String[] advancements = {
+                "root.json", "kill_boss.json", "kill_cursed.json", "kill_disco.json",
+                "kill_explosive.json", "kill_fire.json", "kill_golden.json", "kill_ice.json",
+                "kill_magnet.json", "kill_speed.json", "kill_teleport.json", "kill_zombie.json"
+            };
+            
+            for (String file : advancements) {
+                File target = new File(advancementDir, file);
+                InputStream in = getResource("data/chaoschickens/advancement/" + file);
+                if (in != null) {
+                    Files.copy(in, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    in.close();
+                }
+            }
+            
+            if (newlyCreated) {
+                getLogger().info("Created Chaos Chickens advancement datapack. Please reload or restart the server to register advancements.");
+            }
+        } catch (Exception e) {
+            getLogger().log(Level.WARNING, "Failed to setup advancement datapack: " + e.getMessage(), e);
+        }
     }
 }

@@ -214,12 +214,19 @@ public class ChickenSpawnListener implements Listener {
     @EventHandler
     public void onEntitiesLoad(org.bukkit.event.world.EntitiesLoadEvent event) {
         for (org.bukkit.entity.Entity entity : event.getEntities()) {
-            if (entity instanceof Chicken) {
-                Chicken chicken = (Chicken) entity;
+            if (entity instanceof Chicken chicken) {
                 if (ChickenDataUtil.hasTrait(plugin, chicken)) {
                     TraitType trait = ChickenDataUtil.getTrait(plugin, chicken);
                     if (trait != TraitType.EMPTY) {
                         plugin.registerLoadedChicken(chicken, trait);
+                    }
+                } else if (plugin.getConfigManager().isForceAllChickensToHaveTraits()) {
+                    // Make sure it hasn't been loaded/assigned already
+                    if (!plugin.getChickenTrait(chicken).equals(TraitType.EMPTY)) continue;
+                    
+                    TraitType traitType = plugin.pickRandomTrait();
+                    if (traitType != TraitType.EMPTY) {
+                        plugin.assignTrait(chicken, traitType);
                     }
                 }
             }
