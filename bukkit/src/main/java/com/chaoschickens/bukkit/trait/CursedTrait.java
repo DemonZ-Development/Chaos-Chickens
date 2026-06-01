@@ -59,12 +59,37 @@ public class CursedTrait extends BukkitTrait {
     }
 
     @Override
+    public void onTick(Chicken chicken) {
+        if (chicken == null || chicken.isDead()) return;
+
+        // Only spawn particles when players are nearby
+        boolean playersNearby = false;
+        double rangeSq = PROXIMITY_RANGE * PROXIMITY_RANGE;
+        for (Player player : chicken.getWorld().getPlayers()) {
+            if (!player.isDead() && player.isValid() && player.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
+                if (chicken.getLocation().distanceSquared(player.getLocation()) <= rangeSq) {
+                    playersNearby = true;
+                    break;
+                }
+            }
+        }
+
+        if (playersNearby && plugin.getConfigManager().isTraitParticlesEnabled()) {
+            chicken.getWorld().spawnParticle(
+                    org.bukkit.Particle.SPELL_WITCH,
+                    chicken.getLocation().clone().add(0, 0.5, 0),
+                    4, 0.3, 0.3, 0.3, 0.02
+            );
+        }
+    }
+
+    @Override
     public void onPlayerNear(Chicken chicken, Player player) {
         if (chicken == null || chicken.isDead() || player == null) return;
 
         // Pick a random cursed effect
         CursedEffect[] effects = CursedEffect.values();
-        CursedEffect chosen = effects[ThreadLocalRandom.current().nextInt(effects.length)];
+        CursedEffect chosen = effects[plugin.getRandom().nextInt(effects.length)];
 
         player.addPotionEffect(new PotionEffect(
                 chosen.effectType,

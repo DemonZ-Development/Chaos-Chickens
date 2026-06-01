@@ -10,6 +10,7 @@
 package com.chaoschickens.bukkit.listener;
 
 import com.chaoschickens.bukkit.ChaosChickensBukkit;
+import com.chaoschickens.bukkit.trait.BukkitTrait;
 import com.chaoschickens.bukkit.util.ChickenDataUtil;
 import com.chaoschickens.common.trait.TraitType;
 import org.bukkit.entity.Chicken;
@@ -17,6 +18,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 
 /**
  * Listener that cancels fire/lava/explosion damage for fire and boss chickens.
@@ -69,6 +73,12 @@ public class ChickenDamageListener implements Listener {
                 return;
             }
         }
+
+        // Trigger onDamage for the trait
+        BukkitTrait trait = plugin.getTraitMap().get(traitType);
+        if (trait != null) {
+            trait.onDamage(chicken, event, event.getDamage());
+        }
     }
 
     private boolean isFireDamage(EntityDamageEvent.DamageCause cause) {
@@ -76,5 +86,25 @@ public class ChickenDamageListener implements Listener {
                 || cause == EntityDamageEvent.DamageCause.FIRE_TICK
                 || cause == EntityDamageEvent.DamageCause.LAVA
                 || cause == EntityDamageEvent.DamageCause.HOT_FLOOR;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Chicken chicken)) return;
+
+        org.bukkit.entity.Entity damager = event.getDamager();
+        Player player = null;
+
+        if (damager instanceof Player p) {
+            player = p;
+        } else if (damager instanceof Projectile proj) {
+            if (proj.getShooter() instanceof Player p) {
+                player = p;
+            }
+        }
+
+        if (player != null) {
+            plugin.setLastAttacker(chicken.getUniqueId(), player.getUniqueId());
+        }
     }
 }

@@ -27,9 +27,12 @@ import org.bukkit.inventory.ItemStack;
  */
 public class IceTrait extends BukkitTrait {
 
+    /** Range to check for water blocks to freeze. */
+    private static final int FREEZE_CHECK_RANGE = 1;
+
     public IceTrait() {
-        super(TraitType.ICE, "Freezes water beneath it and drops ice on death!", 0.8,
-                false, true, 40);
+        super(TraitType.ICE, "A freezing chicken that turns water to ice!", 0.8,
+                false, true, 20);
     }
 
     @Override
@@ -50,25 +53,15 @@ public class IceTrait extends BukkitTrait {
 
         Location chickenLoc = chicken.getLocation(); // Do NOT mutate this
 
-        // Freeze water block the chicken is standing on (use clone to avoid mutation)
-        Block blockBelow = chickenLoc.clone().subtract(0, 1, 0).getBlock();
-        if (blockBelow.getType() == Material.WATER) {
-            blockBelow.setType(Material.ICE);
-        }
-
-        // Also check the block at the chicken's feet
-        Block blockAt = chickenLoc.getBlock();
-        if (blockAt.getType() == Material.WATER) {
-            blockAt.setType(Material.ICE);
-        }
-
-        // Also freeze water in a 1-block radius around the chicken
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
+        // Freeze water blocks around the chicken (but not the block directly below)
+        // Uses FROSTED_ICE which auto-melts, matching Fabric-26 behavior
+        for (int dx = -FREEZE_CHECK_RANGE; dx <= FREEZE_CHECK_RANGE; dx++) {
+            for (int dz = -FREEZE_CHECK_RANGE; dz <= FREEZE_CHECK_RANGE; dz++) {
+                Block checkBlock = chickenLoc.clone().add(dx, -1, dz).getBlock();
+                // Skip the block directly under the chicken to prevent self-trapping
                 if (dx == 0 && dz == 0) continue;
-                Block nearby = chickenLoc.clone().add(dx, -1, dz).getBlock();
-                if (nearby.getType() == Material.WATER) {
-                    nearby.setType(Material.ICE);
+                if (checkBlock.getType() == Material.WATER) {
+                    checkBlock.setType(Material.FROSTED_ICE);
                 }
             }
         }
@@ -78,9 +71,9 @@ public class IceTrait extends BukkitTrait {
             chicken.getWorld().spawnParticle(
                     Particle.SNOWFLAKE,
                     chickenLoc.clone().add(0, 0.5, 0),
-                    5,
-                    0.4, 0.3, 0.4,
-                    0.01
+                    4,
+                    0.3, 0.3, 0.3,
+                    0.02
             );
         }
     }
@@ -97,15 +90,17 @@ public class IceTrait extends BukkitTrait {
                 for (int z = -radius; z <= radius; z++) {
                     Block block = loc.clone().add(x, y, z).getBlock();
                     Material type = block.getType();
-                    if (type != Material.BEDROCK && type != Material.OBSIDIAN && type != Material.BARRIER) {
+                    if (!type.isAir() && type != Material.ICE && type != Material.FROSTED_ICE
+                            && type != Material.BEDROCK && type != Material.OBSIDIAN && type != Material.BARRIER) {
+                        plugin.registerBlockRestore(block, type, block.getBlockData(), 200);
                         block.setType(Material.ICE);
                     }
                 }
             }
         }
 
-        // Remove default egg drops and add ice instead
-        event.getDrops().removeIf(item -> item.getType() == Material.EGG);
-        event.getDrops().add(new ItemStack(Material.ICE, 1));
+        // Drop ice items matching Fabric-26 logic
+        int count = 1 + plugin.getRandom().nextInt(3); // 1-3 ice
+        event.getDrops().add(new ItemStack(Material.ICE, count));
     }
 }

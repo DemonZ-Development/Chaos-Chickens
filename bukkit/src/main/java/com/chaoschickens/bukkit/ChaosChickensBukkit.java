@@ -37,6 +37,10 @@ import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.Location;
+import org.bukkit.Material;
 
 /**
  * Main plugin class for ChaosChickens on Bukkit/Spigot/Paper/Purpur/Folia.
@@ -52,12 +56,14 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
     private final Map<TraitType, BukkitTrait> traitMap = new LinkedHashMap<>();
     private final Map<UUID, TraitType> activeChickens = new ConcurrentHashMap<>(); // Bug #7 fix: ConcurrentHashMap
     private final Map<UUID, Chicken> loadedChickens = new ConcurrentHashMap<>();
+    private final Map<UUID, UUID> lastAttackerMap = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> chickenTickCounters = new ConcurrentHashMap<>(); // Per-chicken tick tracking
     private final Random random = new Random(); // Bug #9 fix: shared Random instance
     private boolean isFolia = false;
     private volatile boolean foliaTaskRunning = false;
 
     private BukkitTask traitTickTask;
+    private boolean hasReloaded = false;
 
     @Override
     public void onEnable() {
@@ -632,6 +638,8 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         activeChickens.remove(uuid);
         loadedChickens.remove(uuid);
         chickenTickCounters.remove(uuid);
+        lastAttackerMap.remove(uuid);
+        BossTrait.cleanupBoss(uuid);
     }
 
     public void registerLoadedChicken(Chicken chicken, TraitType traitType) {
@@ -673,6 +681,8 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         loadedChickens.remove(uuid);
         activeChickens.remove(uuid);
         chickenTickCounters.remove(uuid);
+        lastAttackerMap.remove(uuid);
+        BossTrait.cleanupBoss(uuid);
     }
 
 
@@ -724,11 +734,25 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
         return configManager;
     }
 
-    private void setupAdvancementDatapack() {
+    private File findSaveRoot(File worldDir) {
+        File current = worldDir;
+        while (current != null) {
+            if (new File(current, "level.dat").exists()) {
+                return current;
+            }
+            current = current.getParentFile();
+        }
+        return worldDir;
+    }
+
+    public void setupAdvancementDatapack() {
         try {
             if (Bukkit.getWorlds().isEmpty()) return;
-            File worldDir = Bukkit.getWorlds().get(0).getWorldFolder();
-            File datapackDir = new File(worldDir, "datapacks/chaoschickens");
+            org.bukkit.World primaryWorld = Bukkit.getWorlds().get(0);
+            File worldDir = primaryWorld.getWorldFolder();
+            File saveRoot = findSaveRoot(worldDir);
+            File datapackDir = new File(saveRoot, "datapacks/chaoschickens");
+            getLogger().info("Extracting advancement datapack to save root: " + datapackDir.getAbsolutePath());
             
             boolean newlyCreated = false;
             if (!datapackDir.exists()) {
@@ -741,7 +765,7 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
             if (!mcmeta.exists()) {
                 String mcmetaContent = "{\n" +
                         "  \"pack\": {\n" +
-                        "    \"pack_format\": 15,\n" +
+                        "    \"pack_format\": 57,\n" +
                         "    \"description\": \"Chaos Chickens Advancements Datapack\"\n" +
                         "  }\n" +
                         "}";
@@ -749,7 +773,19 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
                 newlyCreated = true;
             }
             
-            // Create advancement directory
+            // Delete legacy plural 'advancements' directory if present (MC 1.21+ uses singular 'advancement')
+            File oldDir = new File(datapackDir, "data/chaoschickens/advancements");
+            if (oldDir.exists()) {
+                File[] oldFiles = oldDir.listFiles();
+                if (oldFiles != null) {
+                    for (File f : oldFiles) {
+                        f.delete();
+                    }
+                }
+                oldDir.delete();
+            }
+
+            // Create advancement directory (singular 'advancement' is required by MC 1.21+)
             File advancementDir = new File(datapackDir, "data/chaoschickens/advancement");
             if (!advancementDir.exists()) {
                 advancementDir.mkdirs();
@@ -772,11 +808,70 @@ public class ChaosChickensBukkit extends org.bukkit.plugin.java.JavaPlugin {
                 }
             }
             
-            if (newlyCreated) {
-                getLogger().info("Created Chaos Chickens advancement datapack. Please reload or restart the server to register advancements.");
+            if (newlyCreated && !hasReloaded) {
+                hasReloaded = true;
+                getLogger().info("Created Chaos Chickens advancement datapack. Reloading server to register advancements...");
+                Bukkit.reloadData();
             }
+
+            // Always attempt to enable the datapack on server startup to make sure it is active
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "datapack enable \"file/chaoschickens\"");
+            }, 20L);
         } catch (Exception e) {
             getLogger().log(Level.WARNING, "Failed to setup advancement datapack: " + e.getMessage(), e);
+        }
+    }
+
+    public void setLastAttacker(UUID chickenUuid, UUID playerUuid) {
+        lastAttackerMap.put(chickenUuid, playerUuid);
+        // Automatically clean up after 10 seconds (200 ticks)
+        Runnable cleanupTask = () -> lastAttackerMap.remove(chickenUuid, playerUuid);
+        if (isFolia) {
+            try {
+                Class<?> globalSchedulerClass = Class.forName(
+                        "io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler");
+                Object globalScheduler = Bukkit.class.getMethod("getGlobalRegionScheduler").invoke(null);
+                java.lang.reflect.Method runDelayed = globalSchedulerClass.getMethod("runDelayed",
+                        org.bukkit.plugin.Plugin.class, java.util.function.Consumer.class, long.class);
+                runDelayed.invoke(globalScheduler, this, (java.util.function.Consumer<Object>) task -> cleanupTask.run(), 200L);
+            } catch (Exception e) {
+                Bukkit.getScheduler().runTaskLater(this, cleanupTask, 200L);
+            }
+        } else {
+            Bukkit.getScheduler().runTaskLater(this, cleanupTask, 200L);
+        }
+    }
+
+    public Player getLastAttacker(UUID chickenUuid) {
+        UUID playerUuid = lastAttackerMap.get(chickenUuid);
+        return playerUuid != null ? Bukkit.getPlayer(playerUuid) : null;
+    }
+
+    public void registerBlockRestore(Block block, Material originalMaterial, BlockData originalData, long delayTicks) {
+        Location loc = block.getLocation();
+        Runnable restoreTask = () -> {
+            Block currentBlock = loc.getBlock();
+            if (currentBlock.getType() == Material.ICE || currentBlock.getType() == Material.FROSTED_ICE) {
+                currentBlock.setType(originalMaterial);
+                if (originalData != null) {
+                    currentBlock.setBlockData(originalData);
+                }
+            }
+        };
+        
+        if (isFolia) {
+            try {
+                Class<?> regionSchedulerClass = Class.forName("io.papermc.paper.threadedregions.scheduler.RegionScheduler");
+                Object regionScheduler = Bukkit.class.getMethod("getRegionScheduler").invoke(null);
+                java.lang.reflect.Method runDelayed = regionSchedulerClass.getMethod("runDelayed",
+                        org.bukkit.plugin.Plugin.class, Location.class, java.util.function.Consumer.class, long.class);
+                runDelayed.invoke(regionScheduler, this, loc, (java.util.function.Consumer<Object>) scheduledTask -> restoreTask.run(), delayTicks);
+            } catch (Exception e) {
+                Bukkit.getScheduler().runTaskLater(this, restoreTask, delayTicks);
+            }
+        } else {
+            Bukkit.getScheduler().runTaskLater(this, restoreTask, delayTicks);
         }
     }
 }

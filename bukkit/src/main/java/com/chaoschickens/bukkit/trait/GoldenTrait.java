@@ -9,6 +9,7 @@
  */
 package com.chaoschickens.bukkit.trait;
 
+import com.chaoschickens.bukkit.util.ChickenDataUtil;
 import com.chaoschickens.common.trait.TraitType;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -54,26 +55,31 @@ public class GoldenTrait extends BukkitTrait {
     public void onDeath(Chicken chicken, EntityDeathEvent event) {
         if (chicken == null || event == null) return;
 
-        // Remove default drops (raw chicken, feathers, egg)
-        event.getDrops().clear();
+        // Remove default drops (raw chicken, feathers, egg) for non-boss chickens
+        if (ChickenDataUtil.getTrait(plugin, chicken) != TraitType.BOSS) {
+            event.getDrops().clear();
+        }
 
-        // Drop a random ore item based on weighted chance
-        Material dropMaterial = pickRandomOre();
-        event.getDrops().add(new ItemStack(dropMaterial, 1));
-    }
-
-    private Material pickRandomOre() {
-        double roll = ThreadLocalRandom.current().nextDouble();
-        if (roll < GOLD_NUGGET_CHANCE) {
-            return Material.GOLD_NUGGET;
-        } else if (roll < GOLD_NUGGET_CHANCE + GOLD_INGOT_CHANCE) {
-            return Material.GOLD_INGOT;
-        } else if (roll < GOLD_NUGGET_CHANCE + GOLD_INGOT_CHANCE + IRON_INGOT_CHANCE) {
-            return Material.IRON_INGOT;
-        } else if (roll < GOLD_NUGGET_CHANCE + GOLD_INGOT_CHANCE + IRON_INGOT_CHANCE + EMERALD_CHANCE) {
-            return Material.EMERALD;
-        } else {
-            return Material.DIAMOND;
+        // Drop random ores matching Fabric-26 logic
+        java.util.Random random = plugin.getRandom();
+        int oreCount = 1 + random.nextInt(3);
+        for (int i = 0; i < oreCount; i++) {
+            double roll = random.nextDouble();
+            Material dropMaterial;
+            int count = 1;
+            if (roll < 0.40) {
+                dropMaterial = Material.GOLD_NUGGET;
+                count = 2 + random.nextInt(4);
+            } else if (roll < 0.65) {
+                dropMaterial = Material.GOLD_INGOT;
+            } else if (roll < 0.85) {
+                dropMaterial = Material.IRON_INGOT;
+            } else if (roll < 0.95) {
+                dropMaterial = Material.EMERALD;
+            } else {
+                dropMaterial = Material.DIAMOND;
+            }
+            event.getDrops().add(new ItemStack(dropMaterial, count));
         }
     }
 }

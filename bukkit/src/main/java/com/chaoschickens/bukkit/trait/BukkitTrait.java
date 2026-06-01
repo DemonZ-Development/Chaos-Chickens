@@ -90,4 +90,15 @@ public abstract class BukkitTrait extends AbstractTrait {
     public double getProximityRange() {
         return 0;
     }
+
+    /**
+     * Called when a chicken with this trait takes damage.
+     *
+     * @param chicken The chicken entity
+     * @param event   The EntityDamageEvent
+     * @param amount  The damage amount
+     */
+    public void onDamage(Chicken chicken, org.bukkit.event.entity.EntityDamageEvent event, double amount) {
+        // Default no-op; override in traits with damage behavior
+    }
 }

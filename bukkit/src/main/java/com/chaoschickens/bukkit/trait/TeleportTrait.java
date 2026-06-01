@@ -129,4 +129,10 @@ public class TeleportTrait extends BukkitTrait {
                 || type == Material.SWEET_BERRY_BUSH
                 || type == Material.POWDER_SNOW;
     }
+
+    @Override
+    public void onDamage(Chicken chicken, org.bukkit.event.entity.EntityDamageEvent event, double amount) {
+        if (chicken == null || chicken.isDead()) return;
+        teleport(chicken);
+    }
 }

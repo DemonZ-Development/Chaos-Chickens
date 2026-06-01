@@ -50,11 +50,45 @@ public class ChickenDeathListener implements Listener {
             trait.onDeath(chicken, event);
         }
 
-        // Grant advancement if killed by player
+        // Grant advancement if killed by player or recently hurt by player
         org.bukkit.entity.Player killer = chicken.getKiller();
+        if (killer == null) {
+            killer = plugin.getLastAttacker(chicken.getUniqueId());
+            if (killer != null) {
+                plugin.getLogger().info("No direct killer found, using last attacker: " + killer.getName());
+            }
+        } else {
+            plugin.getLogger().info("Direct killer found: " + killer.getName());
+        }
+
+        // Fallback to nearest player within 32 blocks for BOSS deaths (helps with command kills/explosions)
+        if (killer == null && traitType == TraitType.BOSS) {
+            double nearestDistSq = 32.0 * 32.0;
+            for (org.bukkit.entity.Player p : chicken.getWorld().getPlayers()) {
+                if (p.isValid() && !p.isDead() && p.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
+                    double distSq = p.getLocation().distanceSquared(chicken.getLocation());
+                    if (distSq < nearestDistSq) {
+                        killer = p;
+                        nearestDistSq = distSq;
+                    }
+                }
+            }
+            if (killer != null) {
+                plugin.getLogger().info("No killer/attacker found for BOSS. Falling back to nearest player: " + killer.getName());
+            }
+        }
+
         if (killer != null) {
-            org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(),
-                    "advancement grant " + killer.getName() + " only chaoschickens:kill_" + traitType.getKey());
+            String cmd = "advancement grant " + killer.getName() + " only chaoschickens:kill_" + traitType.getKey();
+            plugin.getLogger().info("Attempting to execute command: " + cmd);
+            try {
+                boolean success = org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(), cmd);
+                plugin.getLogger().info("Advancement command executed with result: " + success);
+            } catch (Exception e) {
+                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to run advancement command: " + cmd, e);
+            }
+        } else {
+            plugin.getLogger().warning("Could not grant advancement for " + traitType.getKey() + " chicken because no killer/attacker/nearest player was found.");
         }
 
         // Remove from active chickens map

@@ -26,7 +26,7 @@ public class MagnetTrait extends BukkitTrait {
 
     private static final double MAGNET_RANGE = 6.0;
     private static final double STEAL_CHANCE = 0.30;
-    private static final double PULL_SPEED = 0.4;
+    private static final double PULL_STRENGTH = 0.15;
 
     public MagnetTrait() {
         super(TraitType.MAGNET, "Attracts nearby items... and sometimes steals them!", 0.8,
@@ -46,16 +46,15 @@ public class MagnetTrait extends BukkitTrait {
 
         Collection<Entity> nearbyEntities = chicken.getNearbyEntities(MAGNET_RANGE, MAGNET_RANGE, MAGNET_RANGE);
         for (Entity entity : nearbyEntities) {
-            if (entity instanceof Item) {
-                Item item = (Item) entity;
-                if (item.isDead()) continue;
+            if (entity instanceof Item item) {
+                if (item.isDead() || !item.isValid() || item.getPickupDelay() > 0) continue;
 
                 // Pull item toward chicken
                 org.bukkit.util.Vector diff = chicken.getLocation().toVector()
                         .subtract(item.getLocation().toVector());
                 if (diff.lengthSquared() < 0.01) continue;
-                org.bukkit.util.Vector direction = diff.normalize().multiply(PULL_SPEED);
-                item.setVelocity(direction);
+                org.bukkit.util.Vector direction = diff.normalize().multiply(PULL_STRENGTH);
+                item.setVelocity(item.getVelocity().add(direction));
 
                 // Chance to steal (remove) the item
                 if (plugin.getRandom().nextDouble() < STEAL_CHANCE) {

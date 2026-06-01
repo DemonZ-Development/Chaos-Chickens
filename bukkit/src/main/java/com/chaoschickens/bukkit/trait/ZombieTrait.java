@@ -52,8 +52,12 @@ public class ZombieTrait extends BukkitTrait {
         double nearestDistance = Double.MAX_VALUE;
 
         for (Entity entity : chicken.getNearbyEntities(CHASE_RANGE, CHASE_RANGE, CHASE_RANGE)) {
-            if (entity instanceof Player) {
-                Player player = (Player) entity;
+            if (entity instanceof Player player) {
+                if (player.isDead() || !player.isValid() 
+                        || player.getGameMode() == org.bukkit.GameMode.CREATIVE 
+                        || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) {
+                    continue;
+                }
                 double distance = chicken.getLocation().distance(player.getLocation());
                 if (distance < nearestDistance) {
                     nearestDistance = distance;
@@ -95,6 +99,16 @@ public class ZombieTrait extends BukkitTrait {
             // Damage on contact
             if (nearestDistance <= DAMAGE_RANGE) {
                 nearestPlayer.damage(DAMAGE_AMOUNT, chicken);
+                nearestPlayer.getWorld().playSound(nearestPlayer.getLocation(), org.bukkit.Sound.ENTITY_ZOMBIE_AMBIENT, 0.5f, 1.5f);
+            }
+
+            // Spawn angry particles every 5 ticks
+            if (chicken.getTicksLived() % 5 == 0 && plugin.getConfigManager().isTraitParticlesEnabled()) {
+                chicken.getWorld().spawnParticle(
+                        org.bukkit.Particle.VILLAGER_ANGRY,
+                        chicken.getLocation().clone().add(0, 0.8, 0),
+                        2, 0.3, 0.3, 0.3, 0.02
+                );
             }
         }
     }

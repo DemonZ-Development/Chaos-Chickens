@@ -20,6 +20,9 @@ import org.bukkit.entity.Chicken;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,6 +39,8 @@ public class BossTrait extends BukkitTrait {
 
     /** Track local tick counter per boss chicken to guarantee correct tick timing. */
     private static final Map<UUID, Integer> bossTicks = new ConcurrentHashMap<>();
+
+    private static final Map<UUID, BossBar> bossBars = new ConcurrentHashMap<>();
 
     public BossTrait() {
         super(TraitType.BOSS, "A powerful chicken with multiple chaos traits combined!", 0.02,
@@ -88,26 +93,71 @@ public class BossTrait extends BukkitTrait {
         UUID uuid = chicken.getUniqueId();
         int tick = bossTicks.merge(uuid, 10, Integer::sum);
 
-        // === Boss aura particles (rotating trail) ===
-        if (plugin.getConfigManager().isTraitParticlesEnabled()) {
-            double angle = tick * 0.15;
-            double radius = 0.8;
-            double px = chicken.getLocation().getX() + Math.cos(angle) * radius;
-            double pz = chicken.getLocation().getZ() + Math.sin(angle) * radius;
-            Location particleLoc = new Location(chicken.getWorld(), px,
-                    chicken.getLocation().getY() + 0.6, pz);
+        // --- Boss Bar Management ---
+        BossBar bossBar = bossBars.computeIfAbsent(uuid, id -> {
+            BossBar bar = org.bukkit.Bukkit.createBossBar(
+                    ChatColor.DARK_RED + "" + ChatColor.BOLD + "☠ BOSS Chicken ☠",
+                    BarColor.RED,
+                    BarStyle.SOLID
+            );
+            bar.setVisible(true);
+            return bar;
+        });
 
-            chicken.getWorld().spawnParticle(Particle.SPELL_WITCH,
-                    particleLoc, 2, 0.05, 0.1, 0.05, 0.01);
-            chicken.getWorld().spawnParticle(Particle.PORTAL,
-                    particleLoc, 1, 0.05, 0.1, 0.05, 0.2);
+        double maxHealth = chicken.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getValue();
+        bossBar.setProgress(Math.max(0.0, Math.min(1.0, chicken.getHealth() / maxHealth)));
+
+        Set<Player> currentPlayers = new HashSet<>();
+        double rangeSq = 32.0 * 32.0;
+        for (Player player : chicken.getWorld().getPlayers()) {
+            if (!player.isDead() && player.isValid() && player.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
+                if (player.getLocation().distanceSquared(chicken.getLocation()) <= rangeSq) {
+                    currentPlayers.add(player);
+                }
+            }
         }
 
-        // Soul fire flame aura every 10 ticks
-        if (tick % 10 == 0 && plugin.getConfigManager().isTraitParticlesEnabled()) {
-            chicken.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME,
-                    chicken.getLocation().clone().add(0, 0.5, 0),
-                    3, 0.3, 0.2, 0.3, 0.01);
+        for (Player player : currentPlayers) {
+            if (!bossBar.getPlayers().contains(player)) {
+                bossBar.addPlayer(player);
+            }
+        }
+
+        List<Player> toRemove = new ArrayList<>();
+        for (Player player : bossBar.getPlayers()) {
+            if (!currentPlayers.contains(player)) {
+                toRemove.add(player);
+            }
+        }
+        for (Player player : toRemove) {
+            bossBar.removePlayer(player);
+        }
+
+        // === Boss aura particles (rotating trail) ===
+        if (plugin.getConfigManager().isTraitParticlesEnabled()) {
+            double time = tick * 0.15;
+            double radius = 1.2;
+            double offsetX = Math.cos(time) * radius;
+            double offsetZ = Math.sin(time) * radius;
+            Location locWitch = chicken.getLocation().clone().add(offsetX, 0.8, offsetZ);
+            Location locPortal = chicken.getLocation().clone().add(-offsetX, 0.8, -offsetZ);
+
+            chicken.getWorld().spawnParticle(Particle.SPELL_WITCH,
+                    locWitch, 2, 0.0, 0.0, 0.0, 0.0);
+            chicken.getWorld().spawnParticle(Particle.PORTAL,
+                    locPortal, 2, 0.0, 0.0, 0.0, 0.0);
+
+            if (tick % 10 == 0) {
+                chicken.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME,
+                        chicken.getLocation().clone().add(0, 1.5, 0),
+                        5, 0.2, 0.2, 0.2, 0.02);
+            }
+
+            if (tick % 5 == 0) {
+                chicken.getWorld().spawnParticle(Particle.ENCHANTMENT_TABLE,
+                        chicken.getLocation().clone().add(0, 0.3, 0),
+                        3, 0.5, 0.1, 0.5, 0.01);
+            }
         }
 
         // === Boss teleport (10 second cooldown) ===
@@ -136,22 +186,22 @@ public class BossTrait extends BukkitTrait {
         if (tick % 60 == 0) {
             Player target = findNearestTarget(chicken, 12.0);
             if (target != null) {
-                Location chickenLoc = chicken.getLocation();
+                Location targetLoc = target.getLocation();
                 org.bukkit.block.Block blockToLift = null;
-                // Find nearby solid block to lift
-                for (int xOffset = -2; xOffset <= 2; xOffset++) {
-                    for (int zOffset = -2; zOffset <= 2; zOffset++) {
-                        org.bukkit.block.Block check = chickenLoc.clone().add(xOffset, 0, zOffset).getBlock();
-                        if (check.getType().isSolid() && check.getType() != Material.AIR && check.getType() != Material.BEDROCK && check.getType() != Material.BARRIER) {
-                            blockToLift = check;
-                            break;
-                        }
+                java.util.Random random = plugin.getRandom();
+                // Find nearby solid block under player to lift
+                for (int attempt = 0; attempt < 15; attempt++) {
+                    int rx = random.nextInt(9) - 4;
+                    int rz = random.nextInt(9) - 4;
+                    org.bukkit.block.Block check = targetLoc.clone().add(rx, -1, rz).getBlock();
+                    if (check.getType().isSolid() && check.getType() != Material.AIR 
+                            && check.getType() != Material.BEDROCK && check.getType() != Material.BARRIER) {
+                        blockToLift = check;
+                        break;
                     }
-                    if (blockToLift != null) break;
                 }
 
                 if (blockToLift != null) {
-                    Material mat = blockToLift.getType();
                     org.bukkit.block.data.BlockData blockData = blockToLift.getBlockData();
                     blockToLift.setType(Material.AIR);
 
@@ -160,11 +210,13 @@ public class BossTrait extends BukkitTrait {
                     fallingBlock.setDropItem(false);
                     fallingBlock.setHurtEntities(true);
 
-                    org.bukkit.util.Vector vec = target.getEyeLocation().toVector().subtract(spawnLoc.toVector()).normalize();
-                    fallingBlock.setVelocity(vec.multiply(1.0).setY(0.4));
+                    org.bukkit.util.Vector targetVec = target.getEyeLocation().toVector().subtract(spawnLoc.toVector());
+                    double distance = targetVec.length();
+                    if (distance > 0) {
+                        fallingBlock.setVelocity(targetVec.multiply(0.85 / distance));
+                    }
 
                     chicken.getWorld().playSound(spawnLoc, Sound.ENTITY_WITHER_SHOOT, 1.5f, 0.5f);
-                    // Bukkit 1.20 uses EXPLOSION_NORMAL
                     chicken.getWorld().spawnParticle(Particle.EXPLOSION_NORMAL, spawnLoc, 5, 0.2, 0.2, 0.2, 0.05);
                 }
             }
@@ -172,9 +224,8 @@ public class BossTrait extends BukkitTrait {
 
         // === Boss melodic hum every 40 ticks ===
         if (tick % 40 == 0) {
-            java.util.Random rand = plugin.getRandom();
             chicken.getWorld().playSound(chicken.getLocation(),
-                    Sound.BLOCK_NOTE_BLOCK_BASS, 1.5f, 0.4f + rand.nextFloat() * 0.3f);
+                    Sound.BLOCK_NOTE_BLOCK_BASS, 1.5f, 0.5f);
         }
 
         // === Lightning Strike Attack (every 120 ticks) ===
@@ -244,6 +295,12 @@ public class BossTrait extends BukkitTrait {
     public void onDeath(Chicken chicken, EntityDeathEvent event) {
         if (chicken == null) return;
 
+        UUID uuid = chicken.getUniqueId();
+        BossBar bar = bossBars.remove(uuid);
+        if (bar != null) {
+            bar.removeAll();
+        }
+
         Location loc = chicken.getLocation();
 
         // === MASSIVE DEATH EXPLOSION ===
@@ -262,32 +319,32 @@ public class BossTrait extends BukkitTrait {
                 } catch (IllegalArgumentException ignored) {}
             }
 
-            // Soul fire ring
-            for (int i = 0; i < 16; i++) {
-                double angle = (i / 16.0) * Math.PI * 2;
+            // Soul fire ring (36 steps to match Fabric)
+            for (int i = 0; i < 36; i++) {
+                double angle = (i / 36.0) * Math.PI * 2;
                 double rx = loc.getX() + Math.cos(angle) * 3.0;
                 double rz = loc.getZ() + Math.sin(angle) * 3.0;
                 chicken.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME,
                         new Location(chicken.getWorld(), rx, loc.getY() + 0.5, rz),
-                        5, 0.1, 0.5, 0.1, 0.05);
+                        3, 0.1, 0.5, 0.1, 0.05);
             }
 
             // Witch sparks
             chicken.getWorld().spawnParticle(Particle.SPELL_WITCH,
-                    loc.clone().add(0, 2, 0), 40, 2.0, 2.0, 2.0, 0.2);
+                    loc.clone().add(0, 1.0, 0), 30, 1.5, 1.5, 1.5, 0.1);
 
             // Enchant swirl
             chicken.getWorld().spawnParticle(Particle.ENCHANTMENT_TABLE,
-                    loc.clone().add(0, 1.5, 0), 30, 1.5, 1.5, 1.5, 0.1);
+                    loc.clone().add(0, 1.0, 0), 30, 1.5, 1.5, 1.5, 0.1);
         }
 
         // === Epic death sounds ===
-        chicken.getWorld().playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 2.0f, 0.5f);
-        chicken.getWorld().playSound(loc, Sound.ENTITY_WITHER_DEATH, 1.5f, 0.8f);
+        chicken.getWorld().playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 3.0f, 0.5f);
+        chicken.getWorld().playSound(loc, Sound.ENTITY_WITHER_DEATH, 2.0f, 1.0f);
 
         // === Loot drops ===
         event.getDrops().add(new ItemStack(Material.NETHER_STAR, 1));
-        int diamonds = 2 + plugin.getRandom().nextInt(4);
+        int diamonds = 2 + plugin.getRandom().nextInt(3);
         event.getDrops().add(new ItemStack(Material.DIAMOND, diamonds));
 
         // === Trigger death for all sub-traits ===
@@ -300,8 +357,8 @@ public class BossTrait extends BukkitTrait {
         }
 
         // Cleanup
-        lastTeleportTime.remove(chicken.getUniqueId());
-        bossTicks.remove(chicken.getUniqueId());
+        lastTeleportTime.remove(uuid);
+        bossTicks.remove(uuid);
     }
 
     @Override
@@ -332,5 +389,20 @@ public class BossTrait extends BukkitTrait {
     public static void cleanupBoss(UUID uuid) {
         lastTeleportTime.remove(uuid);
         bossTicks.remove(uuid);
+        BossBar bar = bossBars.remove(uuid);
+        if (bar != null) {
+            bar.removeAll();
+        }
+    }
+
+    @Override
+    public void onDamage(Chicken chicken, org.bukkit.event.entity.EntityDamageEvent event, double amount) {
+        if (chicken == null || chicken.isDead()) return;
+        chicken.getWorld().playSound(
+                chicken.getLocation(),
+                Sound.ENTITY_ENDER_DRAGON_GROWL,
+                0.5f,
+                1.5f
+        );
     }
 }
