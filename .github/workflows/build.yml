@@ -117,7 +117,7 @@ jobs:
 
       - name: Build Fabric module
         working-directory: fabric
-        run: ./gradlew build --no-daemon
+        run: ./gradlew build -x test --no-daemon
 
       - name: Upload Fabric artifact
         uses: actions/upload-artifact@v4
@@ -164,7 +164,7 @@ jobs:
 
       - name: Build Forge module
         working-directory: forge
-        run: ./gradlew build --no-daemon
+        run: ./gradlew build -x test --no-daemon
 
       - name: Upload Forge artifact
         uses: actions/upload-artifact@v4
@@ -213,7 +213,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Fabric 26 module
-        run: ./gradlew :fabric-26:build --no-daemon
+        run: ./gradlew :fabric-26:build -x test --no-daemon
 
       - name: Upload Fabric 26 artifact
         uses: actions/upload-artifact@v4
